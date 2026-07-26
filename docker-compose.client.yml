@@ -1,0 +1,76 @@
+# Vayl — CLIENT deployment (prebuilt image; no source code needed).
+#
+# You received: this file, .env.example, DEPLOY.md, and pull credentials for the image.
+#   1) cp .env.example .env   &&   edit .env            (see DEPLOY.md — the LLM block is required)
+#   2) docker login <registry>                          (with the credentials your vendor gave you)
+#   3) docker compose -f docker-compose.client.yml up -d
+#   4) bootstrap the first admin (key shown once):
+#      docker compose -f docker-compose.client.yml run --rm vayl \
+#        python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+#
+# Put TLS/ingress in front (see DEPLOY.md); do not expose :8080 to the internet directly.
+services:
+  vayl:
+    image: "${VAYL_IMAGE:-ghcr.io/vayl-dev/vayl:latest}"   # pin a version in .env for deliberate upgrades
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    environment:
+      VAYL_HOST: "0.0.0.0"
+      VAYL_PORT: "8080"
+      VAYL_AUTH_REQUIRED: "1"
+      VAYL_ENCRYPT: "on"
+      # LLM (required) — your endpoint, or Ollama on the host (see .env.example / DEPLOY.md)
+      LLM_PROVIDER: "${LLM_PROVIDER:-openai}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5-mini}"
+      EMBED_BASE_URL: "${EMBED_BASE_URL:-}"
+      EMBED_API_KEY: "${EMBED_API_KEY:-}"
+      EMBED_MODEL: "${EMBED_MODEL:-text-embedding-3-small}"
+      # Storage: blank = SQLite; set to use the `postgres` profile below
+      VAYL_DATABASE_URL: "${VAYL_DATABASE_URL:-}"
+      # Key custody: file (default) or vault
+      VAYL_KMS: "${VAYL_KMS:-file}"
+      VAULT_ADDR: "${VAULT_ADDR:-}"
+      VAULT_TOKEN: "${VAULT_TOKEN:-}"
+      # Enterprise license (optional; omit → Community)
+      VAYL_VENDOR_PUBKEY: "${VAYL_VENDOR_PUBKEY:-}"
+      VAYL_LICENSE: "${VAYL_LICENSE:-}"
+      # OIDC SSO (optional; requires an Enterprise license)
+      VAYL_OIDC_ISSUER: "${VAYL_OIDC_ISSUER:-}"
+      VAYL_OIDC_AUDIENCE: "${VAYL_OIDC_AUDIENCE:-}"
+      VAYL_OIDC_JWKS_URL: "${VAYL_OIDC_JWKS_URL:-}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach an Ollama running on the Docker host
+    volumes:
+      - vayl-data:/data
+    restart: unless-stopped
+
+  # Optional: Postgres multi-writer backend.
+  #   docker compose -f docker-compose.client.yml --profile postgres up -d
+  #   then set VAYL_DATABASE_URL=postgresql://vayl:CHANGE_ME@postgres:5432/vayl in .env
+  postgres:
+    image: postgres:16
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: "vayl"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-vayl}"   # CHANGE THIS in .env
+      POSTGRES_DB: "vayl"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  # Optional: Neo4j graph projection.
+  #   docker compose -f docker-compose.client.yml --profile graph up -d   (+ VAYL_GRAPH=1, NEO4J_*)
+  neo4j:
+    image: neo4j:5
+    profiles: ["graph"]
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-changeme}"   # CHANGE THIS in .env
+    volumes:
+      - neo4j-data:/data
+
+volumes:
+  vayl-data:
+  pg-data:
+  neo4j-data:

@@ -1,0 +1,24 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+*.db
+.venv/
+.venv-ft/          # free-threaded (3.14t) dev venv — see CONTRIBUTING
+.pytest_cache/
+.DS_Store
+
+# secrets / local state (never commit)
+*.key
+*.token
+*.salt
+*.wrapped
+.env
+.sessions/
+
+# benchmark venv (mem0/graphiti — not part of Vayl deps)
+.venv-bench/
+
+# LOCOMO harness: dataset is fetched from upstream, DBs are run artifacts
+benchmarks/datasets/
+benchmarks/.dbs/

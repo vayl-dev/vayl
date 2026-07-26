@@ -1,0 +1,249 @@
+{
+  "model": "gpt-4o-mini",
+  "embed": "text-embedding-3-small",
+  "scenarios": 10,
+  "systems": [
+    {
+      "system": "Vayl",
+      "model": "gpt-4o-mini",
+      "results": [
+        {
+          "scenario": "supersede \u2014 switch tools",
+          "answer": "We use Zustand for state management.",
+          "outcome": "CORRECT",
+          "retrieved": "- org_state_management: zustand"
+        },
+        {
+          "scenario": "supersede \u2014 cloud migration",
+          "answer": "We host our infrastructure on GCP.",
+          "outcome": "CORRECT",
+          "retrieved": "- org_cloud_provider: GCP"
+        },
+        {
+          "scenario": "supersede \u2014 numeric update",
+          "answer": "You have 12 months of runway.",
+          "outcome": "CORRECT",
+          "retrieved": "- org_runway: 12 months"
+        },
+        {
+          "scenario": "retract \u2014 drop with no replacement",
+          "answer": "We do not use any error monitoring tool.",
+          "outcome": "CORRECT",
+          "retrieved": "- org_error_monitoring_tool: none"
+        },
+        {
+          "scenario": "retract \u2014 vendor removed",
+          "answer": "I don't know.",
+          "outcome": "CORRECT",
+          "retrieved": ""
+        },
+        {
+          "scenario": "coexist \u2014 scoped (web vs mobile)",
+          "answer": "The mobile app uses the Zustand state management library.",
+          "outcome": "CORRECT",
+          "retrieved": "- state_management: zustand"
+        },
+        {
+          "scenario": "hypothetical must not be stored",
+          "answer": "We use REST API style.",
+          "outcome": "CORRECT",
+          "retrieved": "- org_api_technology: REST"
+        },
+        {
+          "scenario": "unchanged fact",
+          "answer": "We use PostgreSQL.",
+          "outcome": "CORRECT",
+          "retrieved": "- state_management: PostgreSQL"
+        },
+        {
+          "scenario": "supersede \u2014 bare replacement",
+          "answer": "Your favorite database is PostgreSQL.",
+          "outcome": "CORRECT",
+          "retrieved": "- user_favorite_database: PostgreSQL"
+        },
+        {
+          "scenario": "supersede \u2014 preference flip",
+          "answer": "You prefer spaces.",
+          "outcome": "CORRECT",
+          "retrieved": "- user_preference_indentation: spaces"
+        }
+      ],
+      "write_ms": 2497.5586863684407,
+      "read_ms": 1091.2339958999837,
+      "footprint": {
+        "retrievable_as_current": 9,
+        "total_stored": 9,
+        "note": "stale facts retired to history \u2014 not in the active/retrievable set"
+      },
+      "infra": "SQLite file (no server); graph optional"
+    },
+    {
+      "system": "Mem0",
+      "model": "gpt-4o-mini",
+      "results": [
+        {
+          "scenario": "supersede \u2014 switch tools",
+          "answer": "Zustand.",
+          "outcome": "CORRECT",
+          "retrieved": "- User switched from using Redux to Zustand for state management around July 22, 2026.",
+          "n_memories": 1
+        },
+        {
+          "scenario": "supersede \u2014 cloud migration",
+          "answer": "You host your infrastructure on GCP.",
+          "outcome": "CORRECT",
+          "retrieved": "- User migrated from AWS to GCP around July 22, 2026, and is currently hosting everything on GCP now.",
+          "n_memories": 1
+        },
+        {
+          "scenario": "supersede \u2014 numeric update",
+          "answer": "You have 12 months of runway as of July 22, 2026.",
+          "outcome": "CORRECT",
+          "retrieved": "- User's runway is 18 months as of July 22, 2026.\n- User's runway is now 12 months as of July 22, 2026, after a recent hire.",
+          "n_memories": 2
+        },
+        {
+          "scenario": "retract \u2014 drop with no replacement",
+          "answer": "You currently use Sentry for error monitoring.",
+          "outcome": "SILENTLY-WRONG",
+          "retrieved": "- User has dropped Sentry for error monitoring and currently has no error monitoring in place as of July 22, 2026.\n- User uses Sentry for error monitoring as of July 22, 2026.",
+          "n_memories": 2
+        },
+        {
+          "scenario": "retract \u2014 vendor removed",
+          "answer": "I don't know.",
+          "outcome": "CORRECT",
+          "retrieved": "- User monitors with Datadog as of July 22, 2026.\n- User dropped the vendor Datadog, and it is no longer in use as of July 22, 2026.",
+          "n_memories": 2
+        },
+        {
+          "scenario": "coexist \u2014 scoped (web vs mobile)",
+          "answer": "The mobile app uses Zustand for state management.",
+          "outcome": "CORRECT",
+          "retrieved": "- User uses Zustand for state management in their mobile application.\n- User uses Redux for state management in their web application.",
+          "n_memories": 2
+        },
+        {
+          "scenario": "hypothetical must not be stored",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_memories": 0
+        },
+        {
+          "scenario": "unchanged fact",
+          "answer": "You use PostgreSQL.",
+          "outcome": "CORRECT",
+          "retrieved": "- User's primary database is PostgreSQL.",
+          "n_memories": 1
+        },
+        {
+          "scenario": "supersede \u2014 bare replacement",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "- User's favorite database is MySQL as of July 22, 2026.\n- User's favorite database is PostgreSQL as of July 22, 2026.",
+          "n_memories": 2
+        },
+        {
+          "scenario": "supersede \u2014 preference flip",
+          "answer": "You prefer spaces for indentation.",
+          "outcome": "CORRECT",
+          "retrieved": "- User prefers spaces for indentation as of July 22, 2026, changing from their previous preference for tabs.\n- User prefers tabs for indentation as of July 22, 2026.",
+          "n_memories": 2
+        }
+      ],
+      "write_ms": 2550.132543736876,
+      "read_ms": 1830.396774899964,
+      "footprint": {
+        "retrievable_as_current": 15,
+        "total_stored": 15,
+        "note": "additive \u2014 superseded facts remain searchable unless the LLM chose to delete them"
+      },
+      "infra": "Vector store (Qdrant); additive with LLM-inferred update/delete"
+    },
+    {
+      "system": "Graphiti",
+      "model": "gpt-4o-mini",
+      "results": [
+        {
+          "scenario": "supersede \u2014 switch tools",
+          "answer": "We use Zustand for state management.",
+          "outcome": "CORRECT",
+          "retrieved": "- We switched from Redux to Zustand for state.",
+          "n_facts": 1
+        },
+        {
+          "scenario": "supersede \u2014 cloud migration",
+          "answer": "You host your infrastructure on GCP.",
+          "outcome": "CORRECT",
+          "retrieved": "- We migrated off AWS \u2014 we're on GCP now.",
+          "n_facts": 1
+        },
+        {
+          "scenario": "supersede \u2014 numeric update",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "retract \u2014 drop with no replacement",
+          "answer": "I don't know.",
+          "outcome": "CORRECT",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "retract \u2014 vendor removed",
+          "answer": "I don't know.",
+          "outcome": "CORRECT",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "coexist \u2014 scoped (web vs mobile)",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "hypothetical must not be stored",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "unchanged fact",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "supersede \u2014 bare replacement",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        },
+        {
+          "scenario": "supersede \u2014 preference flip",
+          "answer": "I don't know.",
+          "outcome": "MISSED",
+          "retrieved": "",
+          "n_facts": 0
+        }
+      ],
+      "write_ms": 6220.140910052578,
+      "read_ms": 1592.8496085000006,
+      "footprint": {
+        "retrievable_as_current": 2,
+        "total_stored": 2,
+        "note": "0 edges marked invalid (temporal) but retained in the graph"
+      },
+      "infra": "Neo4j server; temporal knowledge graph"
+    }
+  ]
+}

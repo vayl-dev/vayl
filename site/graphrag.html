@@ -1,0 +1,216 @@
+<title>GraphRAG and Vayl — where each one belongs</title>
+<style>
+  :root{
+    --paper:#F6F7F9; --ink:#0F1216; --muted:#5B6472; --faint:#8A94A6;
+    --hair:#E4E7EC; --card:#FFFFFF; --vayl:#12876A; --vayl-soft:#E4F1EC;
+    --alarm:#CC4436; --alarm-soft:#FBE9E7; --grey:#9AA3B0; --grey-soft:#EDEFF2;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--paper:#0C0E11; --ink:#EDEFF2; --muted:#9AA3B0; --faint:#6B7482;
+      --hair:#222730; --card:#14171B; --vayl:#33C89E; --vayl-soft:#12352C;
+      --alarm:#F0736C; --alarm-soft:#3A1D1B; --grey:#7A8494; --grey-soft:#1C2129;}
+  }
+  :root[data-theme="dark"]{--paper:#0C0E11; --ink:#EDEFF2; --muted:#9AA3B0; --faint:#6B7482;
+    --hair:#222730; --card:#14171B; --vayl:#33C89E; --vayl-soft:#12352C;
+    --alarm:#F0736C; --alarm-soft:#3A1D1B; --grey:#7A8494; --grey-soft:#1C2129;}
+  :root[data-theme="light"]{--paper:#F6F7F9; --ink:#0F1216; --muted:#5B6472; --faint:#8A94A6;
+    --hair:#E4E7EC; --card:#FFFFFF; --vayl:#12876A; --vayl-soft:#E4F1EC;
+    --alarm:#CC4436; --alarm-soft:#FBE9E7; --grey:#9AA3B0; --grey-soft:#EDEFF2;}
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 24px}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  h1,h2,h3{line-height:1.15;text-wrap:balance;letter-spacing:-.02em}
+
+  header.top{padding:72px 0 40px;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--vayl);margin:0 0 18px}
+  h1{font-size:clamp(30px,5.2vw,44px);font-weight:700;margin:0 0 18px}
+  .lede{font-size:clamp(17px,2.4vw,19px);color:var(--muted);max-width:62ch;margin:0}
+
+  section{padding:52px 0;border-bottom:1px solid var(--hair)}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);margin:0 0 20px}
+  h2{font-size:clamp(22px,3.4vw,28px);font-weight:650;margin:0 0 10px}
+  p{margin:0 0 16px;max-width:64ch}
+  p.sub{color:var(--muted)}
+
+  .scroll{overflow-x:auto;margin-top:20px}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:500}
+  td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  tr.vayl td{background:var(--vayl-soft)} tr.vayl td:first-child{font-weight:700;color:var(--vayl)}
+  .g{color:var(--vayl);font-weight:600} .r{color:var(--alarm);font-weight:600}
+
+  .nots{margin-top:18px;border:1px solid var(--hair);border-radius:12px;background:var(--card);padding:6px 20px}
+  .nots li{margin:14px 0;font-size:14.5px;color:var(--muted)}
+  .nots li b{color:var(--ink)}
+
+  .diagram{font-family:var(--mono);font-size:13px;background:var(--card);border:1px solid var(--hair);
+    border-radius:12px;padding:20px;overflow-x:auto;white-space:pre;color:var(--muted);margin-top:20px;line-height:1.7}
+  .code{font-family:var(--mono);font-size:13px;background:var(--card);border:1px solid var(--hair);
+    border-radius:12px;padding:18px 20px;overflow-x:auto;margin-top:18px;line-height:1.75}
+  .code .c{color:var(--faint)} .code .k{color:var(--vayl)}
+
+  .cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:8px}
+  .tk{border:1px solid var(--hair);border-radius:12px;padding:20px;background:var(--card)}
+  .tk h3{font-size:15px;margin:0 0 8px;color:var(--vayl)} .tk p{font-size:14px;color:var(--muted);margin:0}
+
+  .caveat{font-size:13.5px;color:var(--faint);border-left:2px solid var(--hair);padding-left:14px;margin-top:20px}
+  footer{padding:44px 0 72px;color:var(--faint);font-size:13px}
+  code{font-family:var(--mono);font-size:.9em;background:var(--grey-soft);padding:2px 6px;border-radius:5px}
+  @media (max-width:680px){ .cards{grid-template-columns:1fr} header.top{padding:52px 0 32px} }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Positioning · GraphRAG &amp; agent memory</p>
+    <h1>GraphRAG answers what your corpus says. Vayl answers what’s true now.</h1>
+    <p class="lede">They are different jobs, and most enterprise agents need both. Vayl is not a
+      GraphRAG system and doesn’t try to be — it’s the layer a GraphRAG stack has no answer for:
+      facts that <em>change</em>.</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Two different questions</p>
+    <h2>A document doesn’t stop being true. A customer’s plan does.</h2>
+    <p class="sub">A corpus store has no reason to implement supersession — a PDF doesn’t become false
+      when a later PDF disagrees; both are simply <em>in the corpus</em>. Agent memory is the opposite:
+      when a customer downgrades, the old plan must stop being returned.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>GraphRAG</th><th>Vayl</th></tr></thead>
+        <tbody>
+          <tr><td>Question</td><td>What does the corpus say?</td><td class="g">What is true right now?</td></tr>
+          <tr><td>Input</td><td>Documents — contracts, wikis, tickets</td><td>Statements — “we moved off Redux”, “Alice left”</td></tr>
+          <tr><td>Corpus</td><td>Largely <b>static</b></td><td><b>Churns</b> — today replaces yesterday</td></tr>
+          <tr><td>Core operation</td><td>Retrieve + summarise</td><td>Reconcile: supersede · retract · flag</td></tr>
+          <tr><td>Scale shape</td><td class="n">10⁴–10⁶ nodes, one shared corpus</td><td class="n">hundreds of facts, per user/tenant</td></tr>
+          <tr><td>Failure that matters</td><td>Missing a relevant passage</td><td class="r">Returning a stale value as current</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Stated plainly</p>
+    <h2>What Vayl does <em>not</em> do.</h2>
+    <p class="sub">So an evaluation doesn’t waste your time.</p>
+    <ul class="nots">
+      <li><b>No document ingestion or chunking.</b> Vayl ingests statements, not files. There is no loader.</li>
+      <li><b>No community detection or hierarchical summarisation</b> — so no <em>global</em> search.
+        Vayl cannot answer “what are the main themes across these 10,000 documents?”</li>
+      <li><b>No corpus-scale graph.</b> The optional Neo4j projection is bounded and per-tenant. We’ve
+        measured it to <span class="num">50k</span> edges (<span class="num">3.7 s</span> bulk ingest,
+        <span class="num">~14 ms</span>/edge write, <span class="num">~34 ms</span> 2-hop traversal).
+        That’s a healthy per-tenant graph — not a corpus knowledge graph, and we claim nothing there.</li>
+    </ul>
+    <p class="caveat">If those are your requirements, the honest recommendation is Microsoft GraphRAG,
+      Zep/Graphiti, or a LlamaIndex property graph. Vayl sits beside them, not against them.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">The gap GraphRAG leaves</p>
+    <h2>Point a corpus stack at changing facts and it goes stale.</h2>
+    <p class="sub">Under sustained churn — 50 users × 4 facts × 4 revisions = <b>800 interleaved
+      writes</b>, then 200 current-value queries, with an identical model, embedder and answer
+      synthesizer for every system:</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>System</th><th>Returns a stale value</th><th>Facts stored / actually current</th></tr></thead>
+        <tbody>
+          <tr class="vayl"><td>Vayl</td><td class="n g">0.0% <small>(0/200)</small></td><td class="n">199 / 199</td></tr>
+          <tr><td>Mem0 <small>(additive vector store)</small></td><td class="n r">32.5% <small>(65/200)</small></td><td class="n">800 / 800</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:20px">Mem0 appended a new memory on every update instead of retiring the old
+      one — <b>800 memories for 200 facts</b>. For one user’s <code>primary database</code> it held
+      <b>five contradictory values</b>, all timestamped the same day. The reader sees several
+      equally-current answers and can’t choose. That ambiguity compounds with every revision; a
+      reconciling store stays flat at one value per fact.</p>
+
+    <p class="sub" style="margin-top:28px">On <b>removal without replacement</b> — “we dropped Sentry”,
+      “Alice left” — across 14 cases including two controls that must <em>not</em> delete:</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>System</th><th>Stale value returned</th><th>Removals handled</th><th>Over-deletion controls kept</th></tr></thead>
+        <tbody>
+          <tr class="vayl"><td>Vayl</td><td class="n g">0/14</td><td class="n">12/12</td><td class="n g">2/2</td></tr>
+          <tr><td>Mem0</td><td class="n">1/14</td><td class="n">11/12</td><td class="n">2/2</td></tr>
+          <tr><td>Graphiti</td><td class="n">3/14</td><td class="n">10/12</td><td class="n r">0/2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caveat"><b>Graphiti retracts well</b> — 10 of 12. An earlier claim of ours that it
+      couldn’t retract at all did not survive a proper benchmark, and we corrected it. Where it
+      struggled was the opposite direction: it deleted a still-true fact on a hedged “considering
+      dropping Redis”, and returned a superseded value on a replacement. Deleting too eagerly is a
+      failure too — which is why the controls are in the suite.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">How they compose</p>
+    <h2>Two questions, same turn, neither layer needs to know about the other.</h2>
+    <div class="diagram">                    ┌──────────────────────────────┐
+  "What do our    →   │  GraphRAG / vector store     │   documents, policies,
+   contracts say?"    │  (corpus knowledge)          │   contracts, wikis
+                      └──────────────────────────────┘
+  agent
+                      ┌──────────────────────────────┐
+  "What plan is   →   │  Vayl (reconciling memory)   │   per-customer state
+   this customer      │  supersede · retract · flag  │   that changes
+   on now?"           └──────────────────────────────┘</div>
+    <div class="code"><span class="c"># corpus knowledge — your existing GraphRAG stack, unchanged</span>
+policy = graphrag.<span class="k">query</span>("What is our refund policy for annual plans?")
+
+<span class="c"># current state — Vayl</span>
+vayl.<span class="k">remember</span>("Customer moved from Pro to the Free plan", user_id="cust_5521")
+plan = vayl.<span class="k">recall</span>("what plan is the customer on?", user_id="cust_5521")   <span class="c"># -> "Free"</span></div>
+    <p style="margin-top:18px">The refund policy comes from the corpus; the customer’s <em>current</em>
+      plan comes from memory that reconciled the downgrade. Ask a GraphRAG index that second question
+      after three plan changes and you get whichever chunk ranks highest.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker">Which do you need</p>
+    <h2>Usually both — and that’s the point.</h2>
+    <div class="cards">
+      <div class="tk"><h3>Only GraphRAG</h3><p>Your facts live in documents and rarely change — policy
+        Q&amp;A, contract search, research over a fixed corpus.</p></div>
+      <div class="tk"><h3>Only Vayl</h3><p>Your agent tracks state per user, account or project and
+        there’s no document corpus — support bots, assistants, ops copilots, sales agents.</p></div>
+      <div class="tk"><h3>Both</h3><p>An agent that answers from company knowledge <em>and</em> remembers
+        each customer’s evolving situation. Using one tool for both is where state answers go stale.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>Honest notes.</b> These benchmarks are <b>vendor-run</b> — we build Vayl. To limit the bias we
+    fixed the model, embedder and answer-synthesizer across all systems, ran each competitor in its
+    documented default configuration, and released the harnesses so the numbers can be re-run
+    (<code>benchmarks/evaluations/scale_bench.py</code>, <code>retraction_battery.py</code>,
+    <code>compare_systems.py</code>). Results are single-run and run-to-run variance is visible, so
+    small differences shouldn’t be over-read. We also report where we don’t win: on clean, low-churn
+    supersession the three systems are close, and on multi-hop relational queries Graphiti had the
+    fastest reads in the study. The advantage we can defend is narrow and specific — <b>churn,
+    removal, ambiguity and cost</b> — not “better memory”.
+  </div>
+</footer>

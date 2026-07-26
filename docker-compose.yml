@@ -1,0 +1,80 @@
+# Vayl self-host — one authenticated MCP server + a persistent data volume.
+#
+#   docker compose up -d --build
+#   # bootstrap the first admin (one-off), then hand out the printed key:
+#   docker compose run --rm vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+#   # health:  curl localhost:8080/healthz   ·   metrics: curl localhost:8080/metrics
+#
+# Put TLS/ingress in front; do not expose 8080 to the internet directly.
+services:
+  vayl:
+    build: .
+    image: vayl:latest
+    ports:
+      - "8080:8080"
+    # Values below come from `.env` (copy .env.example → .env, then edit). See DEPLOY.md.
+    environment:
+      VAYL_HOST: "0.0.0.0"
+      VAYL_PORT: "8080"
+      VAYL_AUTH_REQUIRED: "1"
+      VAYL_ENCRYPT: "on"
+      # LLM (required): point at your endpoint, or run Ollama (see DEPLOY.md / .env.example)
+      LLM_PROVIDER: "${LLM_PROVIDER:-openai}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5-mini}"
+      EMBED_BASE_URL: "${EMBED_BASE_URL:-}"
+      EMBED_API_KEY: "${EMBED_API_KEY:-}"
+      EMBED_MODEL: "${EMBED_MODEL:-text-embedding-3-small}"
+      # Storage: blank = SQLite; set to use the `postgres` profile below
+      VAYL_DATABASE_URL: "${VAYL_DATABASE_URL:-}"
+      # Key custody: file (default) or vault
+      VAYL_KMS: "${VAYL_KMS:-file}"
+      VAULT_ADDR: "${VAULT_ADDR:-}"
+      VAULT_TOKEN: "${VAULT_TOKEN:-}"
+      # Enterprise license (optional; omit → Community)
+      VAYL_VENDOR_PUBKEY: "${VAYL_VENDOR_PUBKEY:-}"
+      VAYL_LICENSE: "${VAYL_LICENSE:-}"
+      # OIDC SSO (optional; requires an Enterprise license)
+      VAYL_OIDC_ISSUER: "${VAYL_OIDC_ISSUER:-}"
+      VAYL_OIDC_AUDIENCE: "${VAYL_OIDC_AUDIENCE:-}"
+      VAYL_OIDC_JWKS_URL: "${VAYL_OIDC_JWKS_URL:-}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach an Ollama running on the Docker host
+    volumes:
+      - vayl-data:/data                    # SQLite DB + encryption/signing keys persist here
+      #                                      (for production key custody set VAYL_KMS=vault — see DEPLOY.md)
+    restart: unless-stopped
+
+  # Optional: Postgres multi-writer backend. Enable with `docker compose --profile postgres up -d`
+  # and set VAYL_DATABASE_URL=postgresql://vayl:vayl@postgres:5432/vayl in .env.
+  postgres:
+    image: postgres:16
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: "vayl"
+      POSTGRES_PASSWORD: "vayl"
+      POSTGRES_DB: "vayl"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  # Optional: Neo4j for the graph projection (deep/relational recall). Enable with:
+  #   docker compose --profile graph up -d
+  # and set VAYL_GRAPH=1 + NEO4J_* on the vayl service.
+  neo4j:
+    image: neo4j:5
+    profiles: ["graph"]
+    environment:
+      NEO4J_AUTH: "neo4j/testpass123"
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+
+volumes:
+  vayl-data:
+  neo4j-data:
+  pg-data:

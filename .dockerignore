@@ -1,0 +1,21 @@
+# Keep the build context small and never bake secrets/data into the image.
+.git
+.github
+.venv
+**/__pycache__/
+*.pyc
+# secrets & local state (encryption/signing keys, tokens, databases)
+*.db
+*.db.*
+*.key
+*.salt
+*.token
+# not needed at runtime
+tests/
+benchmarks/
+research/
+pr-reviews/
+docker-compose.yml
+Dockerfile
+.dockerignore
+# NB: README.md + LICENSE are kept — pyproject references the readme at install time.

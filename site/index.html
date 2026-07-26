@@ -1,0 +1,844 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vayl — memory that takes a fact back</title>
+<meta name="description" content="Vayl is a self-hosted, open-source memory layer for AI agents that reconciles instead of accumulates — and proves every control by command.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+/* ── Ledger system ─────────────────────────────────────────────────────────
+   Canvas: bone. Ink: warm near-black. One accent: ledger red (correction ink).
+   Spacing scale: 4 8 16 24 48 96 160. Type scales: display / body / mono only.
+   Chip vocabulary (fixed, reused everywhere):
+     .af  filled ink   = affirmed   (SUPERSEDE, ACTIVE, INTACT, VALID, SAFE)
+     .rt  struck       = removed    (RETRACT, SUPERSEDED)
+     .at  red outline  = attention  (FLAG, BROKEN, INVALID, BLOCKED)
+     .sk  ghost        = no-op      (SKIP)                                    */
+:root{
+  --bone:#FAF8F3; --panel:#F4F1EA00; --card:#FFFEFB;
+  --ink:#211D17; --muted:#6E6557; --faint:#9A9081;
+  --accent:#992114; --accent-ink:#7E1B10;
+  --hair:rgba(33,29,23,.12); --hair-soft:rgba(33,29,23,.08);
+  --s1:4px; --s2:8px; --s3:16px; --s4:24px; --s5:48px; --s6:96px; --s7:160px;
+  --serif:"Newsreader","Iowan Old Style",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --max:1120px; --prose:68ch;
+  --t:180ms ease-out;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  background:var(--bone); color:var(--ink);
+  font-family:var(--serif); font-size:17.5px; line-height:1.65;
+  font-optical-sizing:auto; -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent);color:var(--bone)}
+
+/* type scales */
+h1{font-size:clamp(40px,7.5vw,72px);letter-spacing:-.03em;line-height:1.05;font-weight:500}
+h2{font-size:clamp(34px,5.2vw,40px);letter-spacing:-.03em;line-height:1.05;font-weight:500}
+h1,h2{text-wrap:balance}
+.mono,code,pre,kbd{font-family:var(--mono);font-size:14.5px;line-height:1.6;letter-spacing:0}
+p{max-width:var(--prose)}
+em{font-style:italic}
+a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;text-decoration-color:var(--faint);transition:color var(--t),text-decoration-color var(--t)}
+a:hover{color:var(--accent-ink);text-decoration-color:var(--accent-ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:var(--bone);padding:var(--s2) var(--s3);z-index:99;font-family:var(--mono);font-size:14.5px;text-decoration:none}
+.skip:focus{left:var(--s3);top:var(--s3)}
+
+.wrap{max-width:var(--max);margin:0 auto;padding:0 var(--s4)}
+/* grid/flex children that contain scrollable code must be allowed to shrink,
+   or they widen their track and force the whole page to scroll sideways */
+.cols2>div,.brow>div,.proof-row>div,.lrow>*,.trow>*,.panel,.codeblock,.shead h2{min-width:0}
+section,#quickstart{scroll-margin-top:var(--s4)}
+
+/* ── header ── */
+/* z-index 30 > scrim's 15: the header is a stacking context (sticky+z), so the drawer inside it
+   inherits this level — below the scrim, the drawer would render dimmed and untappable */
+header.site{position:sticky;top:0;background:var(--bone);border-bottom:1px solid var(--hair);z-index:30}
+header.site .wrap{display:flex;align-items:baseline;gap:var(--s4);padding-top:var(--s3);padding-bottom:var(--s3);flex-wrap:wrap}
+.wordmark{font-family:var(--serif);font-weight:600;font-size:21px;line-height:1;text-decoration:none;letter-spacing:.01em}
+.wordmark:hover{color:var(--accent-ink)}
+nav.top{margin-left:auto;display:flex;gap:var(--s3);flex-wrap:wrap;align-items:baseline}
+nav.top a{font-family:var(--mono);font-size:14.5px;text-decoration:none;color:var(--muted);padding:var(--s1) 0}
+nav.top a:hover{color:var(--accent-ink)}
+.menu-btn,.drawer-close{display:none}
+.scrim{position:fixed;inset:0;background:rgba(33,29,23,.32);opacity:0;pointer-events:none;transition:opacity var(--t);z-index:15}
+body.nav-open{overflow:hidden}
+@media (max-width:640px){
+  .menu-btn{display:inline-flex;flex-direction:column;justify-content:center;gap:5px;margin-left:auto;width:44px;height:36px;padding:0 11px;background:none;border:1px solid var(--hair);border-radius:2px;cursor:pointer;transition:border-color var(--t)}
+  .menu-btn span{display:block;height:1px;background:var(--ink);transition:background var(--t)}
+  .menu-btn:hover{border-color:var(--accent)}
+  .menu-btn:hover span{background:var(--accent-ink)}
+  nav.top{position:fixed;top:0;right:0;bottom:0;z-index:20;margin:0;width:min(78vw,300px);background:var(--bone);border-left:1px solid var(--hair);flex-direction:column;align-items:stretch;gap:0;padding:var(--s3);transform:translateX(100%);transition:transform var(--t);overflow-y:auto}
+  nav.top.open{transform:none}
+  nav.top a{padding:var(--s3) var(--s2);border-bottom:1px solid var(--hair-soft)}
+  .drawer-close{display:block;align-self:flex-end;font-family:var(--mono);font-size:14.5px;background:none;border:1px solid var(--hair);border-radius:2px;padding:4px 10px;color:var(--muted);cursor:pointer;margin-bottom:var(--s3);transition:color var(--t),border-color var(--t)}
+  .drawer-close:hover{color:var(--accent-ink);border-color:var(--accent)}
+  .scrim.on{opacity:1;pointer-events:auto}
+}
+@media (prefers-reduced-motion:reduce){nav.top,.scrim{transition:none}}
+
+/* ── sections ── */
+section{padding:var(--s7) 0;border-bottom:1px solid var(--hair-soft)}
+@media (max-width:720px){section{padding:var(--s6) 0}}
+.shead{display:flex;align-items:baseline;gap:var(--s4);border-bottom:1px solid var(--hair);padding-bottom:var(--s3);margin-bottom:var(--s5);flex-wrap:wrap}
+.eyebrow{font-family:var(--mono);font-size:14.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.shead h2{flex:1;min-width:min(100%,18ch)}
+.lede{color:var(--muted);margin-top:var(--s3)}
+
+/* ── chips: the fixed vocabulary ── */
+.chip{display:inline-block;font-family:var(--mono);font-size:14.5px;line-height:1;padding:5px 9px 6px;border-radius:2px;border:1px solid transparent;white-space:nowrap}
+.chip.af{background:var(--ink);color:var(--bone)}
+.chip.rt{color:var(--muted);border-color:var(--hair);text-decoration:line-through;text-decoration-thickness:1px;background:transparent}
+.chip.at{color:var(--accent-ink);border-color:var(--accent);background:transparent}
+.chip.sk{color:var(--faint);border-color:var(--hair-soft);background:transparent}
+
+/* ── buttons ── */
+.btn{display:inline-block;font-family:var(--mono);font-size:14.5px;padding:12px 20px;border:1px solid var(--ink);border-radius:2px;text-decoration:none;transition:background var(--t),color var(--t),border-color var(--t)}
+.btn.primary{background:var(--ink);color:var(--bone)}
+.btn.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink);color:var(--bone)}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.ghost:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
+
+/* ── hero ── */
+#hero{padding-top:var(--s6)}
+#hero h1{max-width:16ch}
+#hero .sub{margin-top:var(--s4);color:var(--muted)}
+#hero .ctas{display:flex;gap:var(--s3);margin-top:var(--s5);flex-wrap:wrap;align-items:center}
+
+.ledger{margin-top:var(--s6);border:1px solid var(--hair);border-radius:3px;background:var(--card);overflow:hidden}
+.ledger-cap{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);border-bottom:1px solid var(--hair);padding:var(--s2) var(--s3);font-family:var(--mono);font-size:14.5px;color:var(--muted)}
+.replay{font-family:var(--mono);font-size:14.5px;background:none;border:1px solid var(--hair);border-radius:2px;padding:4px 10px;color:var(--muted);cursor:pointer;transition:color var(--t),border-color var(--t)}
+.replay:hover{color:var(--accent-ink);border-color:var(--accent)}
+.lrow{display:grid;grid-template-columns:6ch 9ch 1fr auto;gap:var(--s2) var(--s3);align-items:baseline;padding:var(--s3);border-bottom:1px solid var(--hair-soft)}
+.lrow:last-child{border-bottom:0}
+.lrow .t,.lrow .op{font-family:var(--mono);font-size:14.5px;color:var(--muted)}
+.lrow .op{color:var(--ink)}
+.lrow .say{font-style:italic}
+.lrow .out{display:flex;gap:var(--s2);align-items:baseline;justify-content:flex-end;flex-wrap:wrap}
+.lrow .fact{font-family:var(--mono);font-size:14.5px}
+.lrow .fact .val.struck{text-decoration:line-through;color:var(--muted)}
+.lrow .note{grid-column:3 / -1;font-family:var(--mono);font-size:14.5px;color:var(--muted)}
+.lrow.result{background:rgba(33,29,23,.025)}
+.lrow.result .say{font-style:normal;font-weight:500}
+@media (max-width:640px){
+  .lrow{grid-template-columns:1fr auto}
+  .lrow .t{display:none}
+  .lrow .say{grid-column:1 / -1;order:2}
+  .lrow .note{grid-column:1 / -1}
+}
+/* animation: rows start hidden, settle in; strike applied mid-sequence */
+.anim .lrow{opacity:0;transform:translateY(4px);transition:opacity var(--t),transform var(--t)}
+.anim .lrow.on{opacity:1;transform:none}
+.anim .swap-chip,.anim .val{transition:color var(--t)}
+@media (prefers-reduced-motion:reduce){
+  .anim .lrow{opacity:1;transform:none;transition:none}
+  .replay{display:none}
+}
+
+/* ── terminals (the gap, proof) ── */
+.term{border:1px solid var(--hair);border-radius:3px;background:var(--card);overflow:hidden}
+.term .cap{border-bottom:1px solid var(--hair);padding:var(--s2) var(--s3);font-family:var(--mono);font-size:14.5px;color:var(--muted);display:flex;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+.term pre{padding:var(--s3);overflow-x:auto}
+.term .dim{color:var(--muted)}
+.term .ghostln{color:var(--faint)}
+.term .mark{color:var(--accent-ink)}
+.term .strike{text-decoration:line-through;color:var(--muted)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)}
+@media (max-width:860px){.cols2{grid-template-columns:1fr}}
+.caption{margin-top:var(--s3);color:var(--muted)}
+
+/* outcomes vocabulary */
+.vocab{margin-top:var(--s6);border-top:1px solid var(--hair)}
+.vrow{display:grid;grid-template-columns:12ch 1fr;gap:var(--s3);padding:var(--s3) 0;border-bottom:1px solid var(--hair-soft);align-items:baseline}
+.vrow p{color:var(--muted);max-width:none}
+@media (max-width:560px){.vrow{grid-template-columns:1fr}}
+.mechanism{margin-top:var(--s4);font-family:var(--mono);font-size:14.5px;color:var(--ink)}
+
+/* ── numbers: financial rows ── */
+.book{border-top:1px solid var(--hair)}
+.brow{display:grid;grid-template-columns:1fr auto;gap:var(--s2) var(--s5);padding:var(--s4) 0;border-bottom:1px solid var(--hair-soft);align-items:start}
+.brow .label{font-weight:500}
+.brow .detail{color:var(--muted);max-width:52ch}
+.brow .cmd{font-family:var(--mono);font-size:14.5px;color:var(--muted);margin-top:var(--s2);display:block;overflow-x:auto}
+.brow .fig{font-family:var(--mono);font-size:clamp(28px,4vw,40px);line-height:1.1;text-align:right;white-space:nowrap;font-weight:500;font-variant-numeric:tabular-nums}
+.brow .fig .vs{display:block;font-size:14.5px;color:var(--muted);font-weight:400;margin-top:var(--s1)}
+.bsub{padding:var(--s4) 0 var(--s3);border-bottom:1px solid var(--hair);display:flex;gap:var(--s3);align-items:baseline}
+@media (max-width:640px){.brow{grid-template-columns:1fr}.brow .fig{text-align:left;margin-top:var(--s2)}}
+
+/* ── surface: tool families ── */
+details.fam{border:1px solid var(--hair);border-radius:3px;background:var(--card);margin-bottom:var(--s3)}
+details.fam summary{display:grid;grid-template-columns:1fr auto auto;gap:var(--s3);align-items:baseline;padding:var(--s3);cursor:pointer;list-style:none;transition:background var(--t)}
+details.fam summary::-webkit-details-marker{display:none}
+details.fam summary:hover{background:rgba(33,29,23,.03)}
+details.fam summary .fname{font-weight:500}
+details.fam summary .fdesc{grid-column:1 / -1;color:var(--muted);max-width:none}
+details.fam summary .count{font-family:var(--mono);font-size:14.5px;color:var(--muted)}
+details.fam summary .tw{font-family:var(--mono);font-size:14.5px;color:var(--faint);transition:transform var(--t);display:inline-block}
+details.fam[open] summary .tw{transform:rotate(90deg)}
+details.fam .tools{border-top:1px solid var(--hair)}
+.trow{display:grid;grid-template-columns:24ch 1fr;gap:var(--s3);padding:var(--s2) var(--s3);border-bottom:1px solid var(--hair-soft);align-items:baseline}
+.trow:last-child{border-bottom:0}
+.trow code{color:var(--ink)}
+.trow span{color:var(--muted)}
+@media (max-width:640px){.trow{grid-template-columns:1fr}}
+
+/* quickstart */
+#quickstart{margin-top:var(--s6)}
+.tabs{display:flex;gap:var(--s2);border-bottom:1px solid var(--hair);flex-wrap:wrap}
+.tab{font-family:var(--mono);font-size:14.5px;background:none;border:none;border-bottom:2px solid transparent;padding:var(--s2) var(--s3);color:var(--muted);cursor:pointer;transition:color var(--t),border-color var(--t)}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{padding-top:var(--s4)}
+.panel[hidden]{display:none}
+.codeblock{position:relative;border:1px solid var(--hair);border-radius:3px;background:var(--card);margin-bottom:var(--s3)}
+.codeblock pre{padding:var(--s5) var(--s3) var(--s3);overflow-x:auto}
+.codeblock .copy{position:absolute;top:var(--s2);right:var(--s2);font-family:var(--mono);font-size:14.5px;background:var(--bone);border:1px solid var(--hair);border-radius:2px;padding:3px 9px;color:var(--muted);cursor:pointer;transition:color var(--t),border-color var(--t)}
+.codeblock .copy:hover{color:var(--accent-ink);border-color:var(--accent)}
+/* monochrome, weight-based highlighting — printed-code style */
+.k{font-weight:500}
+.c{color:var(--faint)}
+.pr{color:var(--accent-ink)}
+
+/* ── proof ── */
+.proof-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);padding:var(--s5) 0;border-bottom:1px solid var(--hair-soft);align-items:start}
+.proof-row:last-of-type{border-bottom:0}
+.proof-row .claim h3{font-size:17.5px;font-weight:500;line-height:1.65}
+.proof-row .claim p{color:var(--muted);margin-top:var(--s2)}
+.proof-row .claim .tst{display:block;font-family:var(--mono);font-size:14.5px;color:var(--muted);margin-top:var(--s3);overflow-x:auto}
+@media (max-width:860px){.proof-row{grid-template-columns:1fr}}
+.posture{margin-top:var(--s6);border:1px solid var(--hair);border-radius:3px;background:var(--card)}
+.posture .grid{display:grid;grid-template-columns:repeat(3,1fr)}
+.posture .cell{padding:var(--s3);border-right:1px solid var(--hair-soft);border-bottom:1px solid var(--hair-soft);font-family:var(--mono);font-size:14.5px;color:var(--ink)}
+.posture .cell small{display:block;color:var(--muted);font-family:var(--serif);font-size:17.5px;line-height:1.5;margin-top:var(--s1)}
+.posture .cell:nth-child(3n){border-right:0}
+@media (max-width:860px){.posture .grid{grid-template-columns:1fr 1fr}.posture .cell:nth-child(3n){border-right:1px solid var(--hair-soft)}.posture .cell:nth-child(2n){border-right:0}}
+@media (max-width:560px){.posture .grid{grid-template-columns:1fr}.posture .cell{border-right:0}}
+.posture .foot{padding:var(--s3);font-family:var(--mono);font-size:14.5px;color:var(--muted)}
+
+/* ── editions ── */
+.eds{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)}
+@media (max-width:860px){.eds{grid-template-columns:1fr}}
+.ed{border:1px solid var(--hair);border-radius:3px;background:var(--card);padding:var(--s4)}
+.ed.ent{border-top:3px solid var(--accent)}
+.ed h3{font-size:17.5px;font-weight:500}
+.ed .tag{font-family:var(--mono);font-size:14.5px;color:var(--muted);display:block;margin-top:var(--s1)}
+.ed ul{list-style:none;margin:var(--s4) 0;border-top:1px solid var(--hair-soft)}
+.ed li{padding:var(--s2) 0;border-bottom:1px solid var(--hair-soft);font-family:var(--mono);font-size:14.5px}
+.ed li span{color:var(--muted)}
+
+/* very narrow phones */
+@media (max-width:400px){
+  .tab{padding:var(--s2)}
+  .lrow{padding:var(--s3) var(--s2)}
+  .btn{padding:12px var(--s3)}
+}
+
+/* ── footer ── */
+footer.site{padding:var(--s5) 0 var(--s6)}
+footer.site .links{display:flex;gap:var(--s4);flex-wrap:wrap;padding-bottom:var(--s4);border-bottom:1px solid var(--hair-soft)}
+footer.site .links a{font-family:var(--mono);font-size:14.5px;text-decoration:none;color:var(--muted)}
+footer.site .links a:hover{color:var(--accent-ink)}
+footer.site .colophon{padding-top:var(--s4);color:var(--faint);font-family:var(--mono);font-size:14.5px;max-width:none}
+</style>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap">
+    <a class="wordmark" href="#">Vayl</a>
+    <button class="menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="sitenav">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="top" id="sitenav" aria-label="Sections">
+      <button class="drawer-close" id="drawerClose" type="button">Close</button>
+      <a href="#gap">Gap</a>
+      <a href="#numbers">Numbers</a>
+      <a href="#surface">Tools</a>
+      <a href="#proof">Proof</a>
+      <a href="#editions">Editions</a>
+      <a href="https://github.com/vayl-dev/vayl">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="scrim" id="scrim" aria-hidden="true"></div>
+
+<main id="main">
+
+<!-- ── 1 · HERO ─────────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="wrap">
+    <h1>Memory that takes a fact back.</h1>
+    <p class="sub">Vayl is a self-hosted memory layer for AI agents, over MCP. It reconciles instead of accumulates: a new value supersedes the old, a removal actually retracts, ambiguity is flagged rather than guessed — and every control on the trust layer is verifiable by command.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#quickstart">Run it in two minutes</a>
+      <a class="btn ghost" href="https://github.com/vayl-dev/vayl">github.com/vayl-dev/vayl</a>
+    </div>
+
+    <figure class="ledger anim" id="heroLedger" aria-label="A ledger showing Vayl superseding a fact and recall returning only the current value">
+      <div class="ledger-cap">
+        <span>vayl.db — statement ledger</span>
+        <button class="replay" id="replayBtn" type="button">Replay</button>
+      </div>
+      <div class="lrow" data-step="1">
+        <span class="t">09:14</span>
+        <span class="op">remember</span>
+        <span class="say">“We use Redux for state.”</span>
+        <span class="out">
+          <span class="fact">state = <span class="val" id="reduxVal">Redux</span></span>
+          <span class="chip af swap-chip" id="reduxChip">ACTIVE</span>
+        </span>
+      </div>
+      <div class="lrow" data-step="2">
+        <span class="t">11:47</span>
+        <span class="op">remember</span>
+        <span class="say">“Actually, we moved to Zustand.”</span>
+        <span class="out">
+          <span class="fact">state = Zustand</span>
+          <span class="chip af">SUPERSEDE</span>
+        </span>
+      </div>
+      <div class="lrow result" data-step="4">
+        <span class="t">14:02</span>
+        <span class="op">recall</span>
+        <span class="say">“What do we use for state?” → “Zustand”</span>
+        <span class="out"><span class="fact">not “Redux, Zustand”</span></span>
+        <span class="note">history intact — “what did we use first?” still answers “Redux”</span>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- ── 2 · THE GAP ──────────────────────────────────────────────────────── -->
+<section id="gap">
+  <div class="wrap">
+    <header class="shead">
+      <h2>Append-only memory serves stale answers.</h2>
+    </header>
+    <p class="lede">Two failure modes, shown as output rather than argued in prose. Both stores did their job as designed — the design is the problem.</p>
+
+    <div class="cols2" style="margin-top:var(--s5)">
+      <div>
+        <div class="term">
+          <div class="cap"><span>additive store — Mem0</span></div>
+          <pre><span class="pr">&gt;</span> add(<span class="k">"We use Zustand for state."</span>)
+<span class="pr">&gt;</span> add(<span class="k">"We switched to Redux. Zustand is out."</span>)
+<span class="pr">&gt;</span> search(<span class="k">"what do we use for state?"</span>)
+
+  1. "We use Zustand for state"     <span class="dim">0.91</span>  <span class="mark">← stale, ranked first</span>
+  2. "We switched to Redux …"       <span class="dim">0.86</span></pre>
+        </div>
+        <p class="caption">Every fact is retained; similarity ranking decides the truth. The value you explicitly moved away from comes back first.</p>
+      </div>
+      <div>
+        <div class="term">
+          <div class="cap"><span>graph store — Graphiti</span></div>
+          <pre><span class="pr">&gt;</span> add(<span class="k">"We use Sentry for error monitoring."</span>)
+<span class="pr">&gt;</span> add(<span class="k">"We dropped Sentry last month."</span>)
+<span class="pr">&gt;</span> search(<span class="k">"what do we use for monitoring?"</span>)
+
+  USES_MONITORING(org → Sentry)   <span class="dim">valid:</span> true  <span class="mark">← never invalidated</span></pre>
+        </div>
+        <p class="caption">Graphs reconcile contradictions well — a new edge invalidates the old one. But a removal creates no new edge, so there is nothing to invalidate against. “We dropped X” leaves X standing.</p>
+      </div>
+    </div>
+
+    <div class="vocab">
+      <div class="vrow">
+        <span class="chip af">SUPERSEDE</span>
+        <p>A real change retires the old value into history and makes the new one current.</p>
+      </div>
+      <div class="vrow">
+        <span class="chip rt">RETRACT</span>
+        <p>A removal with no replacement empties the slot. A tombstone keeps the provenance; recall never returns the retired value.</p>
+      </div>
+      <div class="vrow">
+        <span class="chip at">FLAG</span>
+        <p>Same slot, same scope, no change signal — genuinely ambiguous. Surfaced for a human, never guessed.</p>
+      </div>
+      <div class="vrow">
+        <span class="chip sk">SKIP</span>
+        <p>Questions, hypotheticals, sarcasm. Not durable facts, never stored as truth.</p>
+      </div>
+      <p class="mechanism">Mechanism: one LLM call extracts and classifies, the engine applies the outcome. No graph database, no second system of record.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 3 · NUMBERS ──────────────────────────────────────────────────────── -->
+<section id="numbers">
+  <div class="wrap">
+    <header class="shead">
+      <h2>Numbers, with the counter-entries.</h2>
+    </header>
+    <p class="lede">Each figure carries the command that reproduces it. The counter-entries are part of the statement, not a footnote.</p>
+
+    <div class="book" style="margin-top:var(--s5)">
+      <div class="brow">
+        <div>
+          <div class="label">Silently-wrong at scale — head to head with Mem0</div>
+          <p class="detail">800 fact-updates across 50 users, same model, same synthesizer. Additive memory keeps every version and returns a stale value one lookup in three (32.5%); Vayl retires superseded facts on write, so its active set stays true — and stores 199 rows where Mem0 holds 800. <a href="https://claude.ai/code/artifact/c7a645bb-623c-456c-a627-43e30d143018" style="color:var(--accent)">See the full benchmark →</a></p>
+          <code class="cmd">python benchmarks/evaluations/scale_bench.py</code>
+        </div>
+        <div class="fig">0%<span class="vs">vs 32.5% — Mem0, 800 updates</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Multi-hop relational — on Graphiti's home turf</div>
+          <p class="detail">Eleven relational queries — ownership chains, transitive dependencies, 3-hop supply — the axis graphs are built for. Vayl's optional graph holds 0% silently-wrong and 8/11 correct (both 3-hop chains), delivered as an SQLite projection, not a required Neo4j deployment. <a href="https://claude.ai/code/artifact/c7a645bb-623c-456c-a627-43e30d143018" style="color:var(--accent)">See the full benchmark →</a></p>
+          <code class="cmd">python benchmarks/evaluations/graph_headtohead.py</code>
+        </div>
+        <div class="fig">0%<span class="vs">silently-wrong · relational, vs Graphiti</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Retraction — removal without replacement</div>
+          <p class="detail">“We dropped Sentry” must stop being returned. Vayl retires the fact on write — kept in history for audit, gone from the current set. An additive store keeps it searchable, so a stale value can resurface. Measured in the cross-system retract scenarios.</p>
+          <code class="cmd">python benchmarks/evaluations/compare_systems.py</code>
+        </div>
+        <div class="fig">retired<span class="vs">vs retained — additive stores</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Silently wrong — confident and false</div>
+          <p class="detail">The one number that kills a memory product: returning a stale or wrong value as if it were current. 255 adversarial trials on Claude Haiku. Ambiguity resolves to FLAG, not to a guess.</p>
+          <code class="cmd">python benchmarks/evaluations/eval_adversarial.py</code>
+        </div>
+        <div class="fig">0.4%<span class="vs">255 adversarial trials</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Cost per write</div>
+          <p class="detail">Extract and reconcile against a single SQLite file — no graph pipeline, no Neo4j to operate. In the head-to-head, Vayl’s writes ran ~2.8&thinsp;s against Graphiti’s ~6–9&thinsp;s (a Neo4j server plus multi-step edge extraction).</p>
+          <code class="cmd">python benchmarks/evaluations/compare_systems.py</code>
+        </div>
+        <div class="fig">~2.8s<span class="vs">write · vs ~6–9s Graphiti</span></div>
+      </div>
+
+      <div class="bsub">
+        <span class="eyebrow">Counter-entries</span>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Plain contradiction: parity, not a win</div>
+          <p class="detail">On ordinary “X changed to Y” supersession with a capable model, an additive store plus a good reader keeps up. Vayl’s measured edge is removal, honesty under ambiguity, cost, and holding up under sustained churn — not a single clean swap.</p>
+          <code class="cmd">python benchmarks/evaluations/compare_systems.py</code>
+        </div>
+        <div class="fig">parity<span class="vs">clean supersession, gpt-4o-mini</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Reconciliation quality tracks the model</div>
+          <p class="detail">The engine is only as honest as the model reading the input. On the default gpt-5-mini, the messy real-world suite — typos, slang, self-corrections, multi-fact messages across a dozen domains — returns 0% silently-wrong. A weaker model degrades; measure yours before you trust it.</p>
+          <code class="cmd">OPENAI_MODEL=gpt-5-mini python benchmarks/evaluations/messy_eval.py</code>
+        </div>
+        <div class="fig">0%<span class="vs">messy real-world, gpt-5-mini</span></div>
+      </div>
+      <div class="brow">
+        <div>
+          <div class="label">Provenance of these numbers</div>
+          <p class="detail">Single-run, author-written suites — not third-party audits. That is exactly why every row above ships with its command: run them before you rely on them.</p>
+          <code class="cmd">ls benchmarks/</code>
+        </div>
+        <div class="fig">1 run<span class="vs">author-written suites</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 4 · SURFACE ──────────────────────────────────────────────────────── -->
+<section id="surface">
+  <div class="wrap">
+    <header class="shead">
+      <h2>Twenty-nine tools, five families.</h2>
+    </header>
+    <p class="lede">The full MCP surface. Every mutation keeps history; every destructive tool is annotated so clients confirm before running it.</p>
+
+    <div style="margin-top:var(--s5)">
+      <details class="fam">
+        <summary>
+          <span class="fname">Core memory</span>
+          <span class="count">8 tools</span><span class="tw">›</span>
+          <span class="fdesc">Write, reconcile, and read the current truth — plus the history additive stores can’t give you.</span>
+        </summary>
+        <div class="tools">
+          <div class="trow"><code>remember</code><span>store fact(s); supersedes, retracts, or splits multiple facts per message; carries a source</span></div>
+          <div class="trow"><code>recall</code><span>answer from current memory; says “I don’t know” rather than guessing</span></div>
+          <div class="trow"><code>recall_related</code><span>multi-hop questions via the optional entity graph</span></div>
+          <div class="trow"><code>history</code><span>every value a subject has held, oldest to newest, with status</span></div>
+          <div class="trow"><code>get_memory</code><span>one fact’s structured detail by id</span></div>
+          <div class="trow"><code>update_memory</code><span>audit-preserving correction — the old value retires to history</span></div>
+          <div class="trow"><code>forget</code><span>guaranteed retraction, retained in history for audit</span></div>
+          <div class="trow"><code>list_memories</code><span>active facts plus what was superseded and retracted</span></div>
+        </div>
+      </details>
+
+      <details class="fam">
+        <summary>
+          <span class="fname">Provenance &amp; decisions</span>
+          <span class="count">3 tools</span><span class="tw">›</span>
+          <span class="fdesc">Why does the agent believe this — and why did it act? Answerable even after the facts change.</span>
+        </summary>
+        <div class="tools">
+          <div class="trow"><code>recall(explain)</code><span>the exact facts behind an answer: value, source, confidence, what they superseded</span></div>
+          <div class="trow"><code>record_decision</code><span>an immutable, signed snapshot of the beliefs behind an action</span></div>
+          <div class="trow"><code>explain_decision</code><span>reconstruct what was believed at decision time, receipt verified</span></div>
+        </div>
+      </details>
+
+      <details class="fam">
+        <summary>
+          <span class="fname">Safety gates</span>
+          <span class="count">2 tools</span><span class="tw">›</span>
+          <span class="fdesc">Refuse to act on disputed, stale, or low-confidence memory. Reads stay open; actions get gated.</span>
+        </summary>
+        <div class="tools">
+          <div class="trow"><code>check_before_act</code><span>SAFE, or BLOCKED with explicit reasons, before an irreversible action</span></div>
+          <div class="trow"><code>safe_recall</code><span>answers only if every supporting fact passes the policy; otherwise withholds and says why</span></div>
+        </div>
+      </details>
+
+      <details class="fam">
+        <summary>
+          <span class="fname">Compliance &amp; proof</span>
+          <span class="count">9 tools</span><span class="tw">›</span>
+          <span class="fdesc">Hard erasure with signed receipts, attestations, and a tamper-evident audit chain — all third-party verifiable.</span>
+        </summary>
+        <div class="tools">
+          <div class="trow"><code>delete</code> / <code>delete_all</code><span>hard erasure including history and graph; issues a signed erasure receipt</span></div>
+          <div class="trow"><code>purge_expired</code><span>retention by age — storage-limitation enforcement</span></div>
+          <div class="trow"><code>export_memory</code><span>machine-readable dump for access and portability requests</span></div>
+          <div class="trow"><code>attest</code><span>signed proof of the current value, anchored to the audit head</span></div>
+          <div class="trow"><code>verify_receipt</code><span>VALID, or INVALID if any field was edited</span></div>
+          <div class="trow"><code>verify_audit</code><span>INTACT, or the exact row where the chain breaks</span></div>
+          <div class="trow"><code>export_public_key</code><span>verify receipts and the chain without the database or the secret</span></div>
+          <div class="trow"><code>audit_log</code><span>who did what, when — encrypted at rest, never wiped by erasure</span></div>
+        </div>
+      </details>
+
+      <details class="fam">
+        <summary>
+          <span class="fname">Admin</span>
+          <span class="count">8 tools</span><span class="tw">›</span>
+          <span class="fdesc">Principals, roles, shared-space policy, edition, and health — the team-deployment surface.</span>
+        </summary>
+        <div class="tools">
+          <div class="trow"><code>create_principal</code><span>issue an API key with a role: admin, member, agent, viewer, auditor</span></div>
+          <div class="trow"><code>list_principals</code> / <code>revoke_principal</code><span>see and disable access; revocation is immediate</span></div>
+          <div class="trow"><code>set_reconcile_policy</code> / <code>get_reconcile_policy</code><span>shared spaces: RECENCY, AUTHORITY, or REVIEW — a lower-ranked source can’t silently overwrite a higher one</span></div>
+          <div class="trow"><code>license_status</code><span>edition, seats used vs allowed, expiry</span></div>
+          <div class="trow"><code>stats</code> / <code>health</code><span>on-device metrics and a setup diagnostic; nothing leaves the machine</span></div>
+        </div>
+      </details>
+    </div>
+
+    <div id="quickstart">
+      <div class="bsub" style="border-bottom:0"><span class="eyebrow">Quickstart</span></div>
+      <p class="lede" style="margin-top:0">Two minutes to a running memory. Point it at your model provider — your key, your data-residency posture; the database on disk stays encrypted either way.</p>
+
+      <div class="tabs" role="tablist" aria-label="LLM backend" style="margin-top:var(--s4)">
+        <button class="tab" role="tab" id="tab-openai" aria-controls="panel-openai" aria-selected="true">OpenAI — gpt-5-mini</button>
+        <button class="tab" role="tab" id="tab-anthropic" aria-controls="panel-anthropic" aria-selected="false" tabindex="-1">Anthropic — Claude</button>
+      </div>
+
+      <div class="panel" id="panel-openai" role="tabpanel" aria-labelledby="tab-openai">
+        <div class="codeblock">
+          <button class="copy" type="button">Copy</button>
+          <pre><span class="c"># install</span>
+git clone https://github.com/vayl-dev/vayl &amp;&amp; cd vayl
+pip install .</pre>
+        </div>
+        <div class="codeblock">
+          <button class="copy" type="button">Copy</button>
+          <pre><span class="c">// Claude Desktop / Cursor → mcpServers</span>
+<span class="k">"vayl"</span>: {
+  <span class="k">"command"</span>: "vayl-mcp",
+  <span class="k">"env"</span>: {
+    <span class="k">"LLM_PROVIDER"</span>: "openai",
+    <span class="k">"OPENAI_API_KEY"</span>: "sk-…",
+    <span class="k">"OPENAI_MODEL"</span>: "gpt-5-mini",
+    <span class="k">"EMBED_BASE_URL"</span>: "https://api.openai.com/v1",
+    <span class="k">"EMBED_MODEL"</span>: "text-embedding-3-small",
+    <span class="k">"VAYL_DB"</span>: "/absolute/path/vayl.db"
+  }
+}</pre>
+        </div>
+        <p class="caption">The default, and the one the numbers above were measured on: 0% silently-wrong on the messy real-world suite. Encryption at rest and the signed audit chain are on by default.</p>
+      </div>
+
+      <div class="panel" id="panel-anthropic" role="tabpanel" aria-labelledby="tab-anthropic" hidden>
+        <div class="codeblock">
+          <button class="copy" type="button">Copy</button>
+          <pre><span class="c"># install</span>
+git clone https://github.com/vayl-dev/vayl &amp;&amp; cd vayl
+pip install .</pre>
+        </div>
+        <div class="codeblock">
+          <button class="copy" type="button">Copy</button>
+          <pre><span class="c">// Claude Desktop / Cursor → mcpServers · Claude reconciles, OpenAI embeds</span>
+<span class="k">"vayl"</span>: {
+  <span class="k">"command"</span>: "vayl-mcp",
+  <span class="k">"env"</span>: {
+    <span class="k">"LLM_PROVIDER"</span>: "anthropic",
+    <span class="k">"ANTHROPIC_API_KEY"</span>: "sk-ant-…",
+    <span class="k">"EMBED_BASE_URL"</span>: "https://api.openai.com/v1",
+    <span class="k">"EMBED_API_KEY"</span>: "sk-…",
+    <span class="k">"EMBED_MODEL"</span>: "text-embedding-3-small",
+    <span class="k">"VAYL_DB"</span>: "/absolute/path/vayl.db"
+  }
+}</pre>
+        </div>
+        <p class="caption">Reconciliation runs on Claude; embeddings on any OpenAI-compatible endpoint (Anthropic has no embeddings API). For a shared team endpoint over authenticated HTTP, see the deployment runbook in the footer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 5 · PROVABLE MEMORY ──────────────────────────────────────────────── -->
+<section id="proof">
+  <div class="wrap">
+    <header class="shead">
+      <h2>Verify it. Don’t take the page’s word.</h2>
+    </header>
+    <p class="lede">Every claim below is a command and its output, paired with the test that pins the behavior in CI. Adjectives don’t survive an audit; these do.</p>
+
+    <div style="margin-top:var(--s5)">
+      <div class="proof-row">
+        <div class="claim">
+          <h3>The audit log is tamper-evident.</h3>
+          <p>Each entry hashes its predecessor and is Ed25519-signed. Edit, delete, or reorder any row and verification names the exact break.</p>
+          <code class="tst">tests/test_audit.py::test_tampering_a_detail_breaks_the_chain</code>
+        </div>
+        <div class="term"><div class="cap"><span>verify_audit</span></div>
+          <pre><span class="pr">&gt;</span> verify_audit
+Audit chain <span class="k">INTACT</span> — 218 entries verified.
+
+<span class="c"># an attacker edits row 2 in the database, then:</span>
+<span class="pr">&gt;</span> verify_audit
+Audit chain <span class="mark">BROKEN</span> at seq 2: content tampered
+(a row’s stored bytes were altered)</pre>
+        </div>
+      </div>
+
+      <div class="proof-row">
+        <div class="claim">
+          <h3>Erasure produces a receipt anyone can check.</h3>
+          <p>Deleting a subject issues a signed receipt — scope, subject, row count, chain anchor. Change any field and the signature fails.</p>
+          <code class="tst">tests/test_receipts.py::test_editing_any_payload_field_invalidates_the_receipt</code>
+        </div>
+        <div class="term"><div class="cap"><span>verify_receipt</span></div>
+          <pre><span class="pr">&gt;</span> delete subject=alice_salary
+Erased 3 record(s). Signed erasure receipt #14 issued.
+
+<span class="pr">&gt;</span> verify_receipt 14
+<span class="k">VALID</span> — signature verified, payload intact
+
+<span class="c"># edit the receipt’s count from 3 to 0, then:</span>
+<span class="pr">&gt;</span> verify_receipt 14
+<span class="mark">INVALID</span> — signature does not match</pre>
+        </div>
+      </div>
+
+      <div class="proof-row">
+        <div class="claim">
+          <h3>The data on disk is ciphertext.</h3>
+          <p>Content columns are Fernet-encrypted at rest, on by default. Search the raw database file for a stored value and find nothing.</p>
+          <code class="tst">tests/test_crypto.py::test_data_is_ciphertext_at_rest_but_plaintext_on_read</code>
+        </div>
+        <div class="term"><div class="cap"><span>at rest</span></div>
+          <pre><span class="pr">$</span> strings vayl.db | grep 120000
+<span class="ghostln">(no matches)</span>
+
+<span class="pr">$</span> sqlite3 vayl.db "SELECT value FROM statements LIMIT 1"
+gAAAAABqXGc8t4v…   <span class="c"># ciphertext, not the salary</span></pre>
+        </div>
+      </div>
+
+      <div class="proof-row">
+        <div class="claim">
+          <h3>Third parties verify without the secret.</h3>
+          <p>Receipts, attestations, and the audit chain check out against the public key alone — no database access, no key material, no trust in the operator.</p>
+          <code class="tst">tests/test_receipts.py::test_erasure_receipt_verifies_with_public_key_only</code>
+        </div>
+        <div class="term"><div class="cap"><span>export_public_key</span></div>
+          <pre><span class="pr">&gt;</span> export_public_key
+ed25519: 727b94c14f7abecd188a99a74b5b7ec9…
+
+<span class="c"># on any other machine, with only the key and the receipt:</span>
+<span class="pr">&gt;</span> receipts.verify(receipt, public_key)
+<span class="k">True</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="posture">
+      <div class="grid">
+        <div class="cell">self-hosted<small>your infrastructure, your keys; the vendor never sees data</small></div>
+        <div class="cell">provider-agnostic<small>any OpenAI-compatible or Anthropic model — your key sets data residency</small></div>
+        <div class="cell">hard erasure<small>delete removes history and graph edges, not just the active row</small></div>
+        <div class="cell">five-role RBAC<small>admin, member, agent, viewer, auditor — fail-closed on every tool</small></div>
+        <div class="cell">Vault key custody<small>Transit envelope encryption; unreachable Vault means refuse to start, never run unencrypted</small></div>
+        <div class="cell">no telemetry<small>the only outbound call is the LLM endpoint you chose</small></div>
+      </div>
+      <div class="foot">Full posture and the GDPR / EU AI Act mapping: <a href="https://github.com/vayl-dev/vayl/blob/main/SECURITY.md">SECURITY.md</a> · <a href="https://github.com/vayl-dev/vayl/blob/main/COMPLIANCE.md">COMPLIANCE.md</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 6 · EDITIONS ─────────────────────────────────────────────────────── -->
+<section id="editions">
+  <div class="wrap">
+    <header class="shead">
+      <h2>Editions.</h2>
+    </header>
+    <div class="eds" style="margin-top:var(--s5)">
+      <div class="ed">
+        <h3>Community</h3>
+        <span class="tag">Apache-2.0 · free · self-hosted</span>
+        <ul>
+          <li>reconciling engine <span>— supersede / retract / flag / skip</span></li>
+          <li>MCP over stdio + HTTP <span>— Claude Desktop, Cursor, Claude Code</span></li>
+          <li>encryption at rest <span>— on by default</span></li>
+          <li>signed audit chain, receipts, attestations</li>
+          <li>safety gates, hard erasure, export</li>
+          <li>SQLite backend <span>— single deployment</span></li>
+          <li>capped seats <span>— 3 principals</span></li>
+        </ul>
+        <a class="btn ghost" href="https://github.com/vayl-dev/vayl">Start from the repository</a>
+      </div>
+      <div class="ed ent">
+        <h3>Enterprise</h3>
+        <span class="tag">self-hosted license · signed offline, works air-gapped</span>
+        <ul>
+          <li>everything in Community, seats uncapped</li>
+          <li>SSO / OIDC <span>— your IdP’s tokens, roles mapped from claims</span></li>
+          <li>Postgres backend <span>— multi-process, advisory-locked writes</span></li>
+          <li>HashiCorp Vault key custody <span>— fail-closed</span></li>
+          <li>multi-tenant isolation seam</li>
+          <li>source-aware shared memory <span>— RECENCY / AUTHORITY / REVIEW</span></li>
+          <li>support with SLA, compliance pack</li>
+        </ul>
+        <a class="btn primary" href="mailto:ac12644@gmail.com?subject=Vayl%20Enterprise">Contact for a pilot</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/vayl-dev/vayl">GitHub</a>
+      <a href="https://github.com/vayl-dev/vayl#readme">Docs</a>
+      <a href="https://github.com/vayl-dev/vayl/blob/main/docs/USE_CASES.md">Use cases</a>
+      <a href="https://github.com/vayl-dev/vayl/blob/main/DEPLOY.md">Deployment runbook</a>
+      <a href="https://github.com/vayl-dev/vayl/blob/main/SECURITY.md">SECURITY.md</a>
+      <a href="https://github.com/vayl-dev/vayl/blob/main/COMPLIANCE.md">COMPLIANCE.md</a>
+      <a href="https://github.com/vayl-dev/vayl/blob/main/LICENSE">Apache-2.0</a>
+    </div>
+    <p class="colophon">Vayl — a reconciling ledger for agent memory. Set in Newsreader and IBM Plex Mono. This page carries no analytics, no cookies, no telemetry — same policy as the product.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var ledger = document.getElementById("heroLedger");
+  var rows = ledger.querySelectorAll(".lrow");
+  var chip = document.getElementById("reduxChip");
+  var val = document.getElementById("reduxVal");
+  var timers = [];
+
+  function finalState(){
+    rows.forEach(function(r){ r.classList.add("on"); });
+    chip.textContent = "SUPERSEDED";
+    chip.className = "chip rt swap-chip";
+    val.classList.add("struck");
+  }
+  function reset(){
+    timers.forEach(clearTimeout); timers = [];
+    rows.forEach(function(r){ r.classList.remove("on"); });
+    chip.textContent = "ACTIVE";
+    chip.className = "chip af swap-chip";
+    val.classList.remove("struck");
+  }
+  function play(){
+    if (reduced){ finalState(); return; }
+    reset();
+    timers.push(setTimeout(function(){ rows[0].classList.add("on"); }, 350));
+    timers.push(setTimeout(function(){ rows[1].classList.add("on"); }, 1150));
+    timers.push(setTimeout(function(){                      /* the correction lands */
+      chip.textContent = "SUPERSEDED";
+      chip.className = "chip rt swap-chip";
+      val.classList.add("struck");
+    }, 1850));
+    timers.push(setTimeout(function(){ rows[2].classList.add("on"); }, 2500));
+  }
+  document.getElementById("replayBtn").addEventListener("click", play);
+  if (reduced){ finalState(); } else { play(); }   /* single fire on load */
+
+  /* tabs */
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  function select(tab){
+    tabs.forEach(function(t){
+      var on = t === tab;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+  }
+  tabs.forEach(function(t, i){
+    t.addEventListener("click", function(){ select(t); });
+    t.addEventListener("keydown", function(e){
+      var j = e.key === "ArrowRight" ? i+1 : e.key === "ArrowLeft" ? i-1 : null;
+      if (j === null) return;
+      e.preventDefault();
+      var n = tabs[(j + tabs.length) % tabs.length];
+      select(n); n.focus();
+    });
+  });
+
+  /* copy buttons */
+  document.querySelectorAll(".codeblock").forEach(function(block){
+    var btn = block.querySelector(".copy");
+    btn.addEventListener("click", function(){
+      var text = block.querySelector("pre").innerText;
+      navigator.clipboard.writeText(text).then(function(){
+        btn.textContent = "Copied";
+        setTimeout(function(){ btn.textContent = "Copy"; }, 1600);
+      });
+    });
+  });
+
+  /* phone nav drawer */
+  var menuBtn = document.getElementById("menuBtn");
+  var siteNav = document.getElementById("sitenav");
+  var scrim = document.getElementById("scrim");
+  var drawerClose = document.getElementById("drawerClose");
+  function setNav(open){
+    siteNav.classList.toggle("open", open);
+    scrim.classList.toggle("on", open);
+    document.body.classList.toggle("nav-open", open);
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    menuBtn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  }
+  menuBtn.addEventListener("click", function(){
+    var open = !siteNav.classList.contains("open");
+    setNav(open);
+    if (open) drawerClose.focus();
+  });
+  drawerClose.addEventListener("click", function(){ setNav(false); menuBtn.focus(); });
+  scrim.addEventListener("click", function(){ setNav(false); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && siteNav.classList.contains("open")){ setNav(false); menuBtn.focus(); }
+  });
+  siteNav.querySelectorAll("a").forEach(function(a){
+    a.addEventListener("click", function(){ setNav(false); });
+  });
+})();
+</script>

@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "users": 50,
+    "subjects": 4,
+    "updates": 4,
+    "writes": 800,
+    "queries": 200,
+    "model": "gpt-4o-mini",
+    "graphiti_users": 8
+  },
+  "systems": [
+    {
+      "system": "Vayl",
+      "model": "gpt-4o-mini",
+      "n_queries": 200,
+      "n_writes": 800,
+      "silently_wrong": 0,
+      "correct": 199,
+      "missed": 1,
+      "write_ms_avg": 2814.7867993350173,
+      "write_ms_p95": 3710.1247499995225,
+      "read_ms_avg": 1242.9713116600124,
+      "footprint": {
+        "retrievable_as_current": 199,
+        "total_stored": 199,
+        "stale_retained_in_current_set": 0,
+        "note": "reconciling \u2014 superseded facts retired to history, never in the active set"
+      },
+      "infra": "SQLite file \u2014 no server"
+    },
+    {
+      "system": "Mem0",
+      "model": "gpt-4o-mini",
+      "n_queries": 200,
+      "n_writes": 800,
+      "silently_wrong": 65,
+      "correct": 35,
+      "missed": 100,
+      "write_ms_avg": 3835.523918065028,
+      "write_ms_p95": 4982.408333000421,
+      "read_ms_avg": 2214.279981694981,
+      "footprint": {
+        "retrievable_as_current": 800,
+        "total_stored": 800,
+        "stale_retained_in_current_set": "grows with updates",
+        "note": "additive \u2014 superseded facts remain searchable unless the LLM chose to delete them"
+      },
+      "infra": "Vector store (Qdrant)"
+    },
+    {
+      "system": "Graphiti (sampled)",
+      "model": "gpt-4o-mini",
+      "n_queries": 32,
+      "n_writes": 128,
+      "silently_wrong": 0,
+      "correct": 0,
+      "missed": 32,
+      "write_ms_avg": 9016.90951006259,
+      "write_ms_p95": 12779.276749999553,
+      "read_ms_avg": 1800.2562695005508,
+      "footprint": {
+        "retrievable_as_current": 0,
+        "total_stored": 0,
+        "stale_retained_in_current_set": "0 marked invalid (retained)",
+        "note": "SAMPLED to 8 users \u2014 ~6s/write makes full scale impractical"
+      },
+      "infra": "Neo4j server"
+    }
+  ]
+}

@@ -1,0 +1,342 @@
+{
+  "model": "gpt-4o-mini",
+  "cases": 14,
+  "systems": [
+    {
+      "system": "Vayl",
+      "n": 14,
+      "silently_wrong": 0,
+      "correct": 14,
+      "missed": 0,
+      "retract_correct": 12,
+      "retract_n": 12,
+      "controls_correct": 2,
+      "write_ms": 2567.5318943930115,
+      "results": [
+        {
+          "case": "employment ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "vendor dropped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "team membership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "service dependency ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "ServiceA does not call ServiceB.",
+          "retrieved": "- service_a_calls_service_b: false"
+        },
+        {
+          "case": "hosting stopped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "management ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "tool removed",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "partnership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "ownership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "support discontinued",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- org_supports_ie11: false"
+        },
+        {
+          "case": "subscription cancelled",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "reporting line ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "CONTROL hedge \u2014 must NOT delete",
+          "kind": "control",
+          "outcome": "CORRECT",
+          "answer": "Acme uses Redis for caching.",
+          "retrieved": "- acme_caching: redis"
+        },
+        {
+          "case": "CONTROL replacement \u2014 supersede, not retract",
+          "kind": "control",
+          "outcome": "CORRECT",
+          "answer": "Acme uses Rollbar for error monitoring.",
+          "retrieved": "- acme_error_monitoring: Rollbar"
+        }
+      ],
+      "infra": "SQLite \u2014 no server"
+    },
+    {
+      "system": "Mem0",
+      "n": 14,
+      "silently_wrong": 1,
+      "correct": 13,
+      "missed": 0,
+      "retract_correct": 11,
+      "retract_n": 12,
+      "controls_correct": 2,
+      "write_ms": 24755.66233482141,
+      "results": [
+        {
+          "case": "employment ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Alice works at Acme as of July 23, 2026.\n- Alice left Acme around July 23, 2026, after previously working there."
+        },
+        {
+          "case": "vendor dropped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Acme does not use Sentry for error monitoring.",
+          "retrieved": "- User stated that Acme uses Sentry for error monitoring around July 23, 2026.\n- User stated that Acme dropped Sentry for error monitoring around July 23, 2026."
+        },
+        {
+          "case": "team membership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- User stated that Bob is currently on the Platform team as of July 23, 2026.\n- User stated that Bob left the Platform team around July 23, 2026."
+        },
+        {
+          "case": "service dependency ends",
+          "kind": "retract",
+          "outcome": "SILENTLY-WRONG",
+          "answer": "ServiceA calls ServiceB.",
+          "retrieved": "- ServiceA calls ServiceB again on July 23, 2026 after previously not calling it."
+        },
+        {
+          "case": "hosting stopped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Acme stopped using AWS around July 23, 2026.",
+          "retrieved": "- User stated that Acme hosts on AWS around July 23, 2026.\n- User stated that Acme stopped using AWS around July 23, 2026."
+        },
+        {
+          "case": "management ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- User stated that Carol manages the Data team as of July 23, 2026.\n- Carol no longer manages the Data team as of July 23, 2026."
+        },
+        {
+          "case": "tool removed",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- User stated that Globex uses Jira for tracking as of July 23, 2026.\n- Globex got rid of Jira around July 23, 2026, after previously using it for tracking."
+        },
+        {
+          "case": "partnership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Initech no longer partners with Umbrella.",
+          "retrieved": "- User stated that Initech partners with Umbrella around July 23, 2026.\n- User stated that Initech no longer partners with Umbrella around July 23, 2026."
+        },
+        {
+          "case": "ownership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- User stated that Dana owns the billing service as of July 23, 2026.\n- Dana no longer owns the billing service as of July 23, 2026."
+        },
+        {
+          "case": "support discontinued",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Acme does not support any browser as of July 23, 2026.",
+          "retrieved": "- User stated that Acme supports Internet Explorer 11 (IE11) around July 23, 2026.\n- User stated that Acme stopped supporting Internet Explorer 11 (IE11) on July 23, 2026."
+        },
+        {
+          "case": "subscription cancelled",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Zenith does not currently subscribe to Datadog.",
+          "retrieved": "- Zenith subscribes to Datadog as of July 23, 2026.\n- Zenith cancelled its Datadog subscription around July 23, 2026."
+        },
+        {
+          "case": "reporting line ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- User stated that Erin reports to Frank as of July 23, 2026.\n- As of July 23, 2026, Erin no longer reports to Frank."
+        },
+        {
+          "case": "CONTROL hedge \u2014 must NOT delete",
+          "kind": "control",
+          "outcome": "CORRECT",
+          "answer": "Acme uses Redis for caching.",
+          "retrieved": "- Acme uses Redis for caching\n- Acme is considering dropping Redis for caching around July 23, 2026"
+        },
+        {
+          "case": "CONTROL replacement \u2014 supersede, not retract",
+          "kind": "control",
+          "outcome": "CORRECT",
+          "answer": "Acme uses Rollbar for error monitoring.",
+          "retrieved": "- Acme moved from Sentry to Rollbar for error monitoring around July 23, 2026."
+        }
+      ],
+      "infra": "Qdrant vector store"
+    },
+    {
+      "system": "Graphiti",
+      "n": 14,
+      "silently_wrong": 3,
+      "correct": 10,
+      "missed": 1,
+      "retract_correct": 10,
+      "retract_n": 12,
+      "controls_correct": 0,
+      "write_ms": 8360.664821428405,
+      "results": [
+        {
+          "case": "employment ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Alice works at Acme.\n- Alice no longer works at Acme. (no longer valid)"
+        },
+        {
+          "case": "vendor dropped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Acme dropped Sentry."
+        },
+        {
+          "case": "team membership ends",
+          "kind": "retract",
+          "outcome": "SILENTLY-WRONG",
+          "answer": "Bob is on the Platform team.",
+          "retrieved": "- Bob is part of the Platform team."
+        },
+        {
+          "case": "service dependency ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- ServiceA calls ServiceB.\n- ServiceA no longer calls ServiceB. (no longer valid)"
+        },
+        {
+          "case": "hosting stopped",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Acme stopped using AWS.\n- Acme hosts on AWS. (no longer valid)"
+        },
+        {
+          "case": "management ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "tool removed",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Globex uses Jira for tracking. (no longer valid)\n- Globex got rid of Jira."
+        },
+        {
+          "case": "partnership ends",
+          "kind": "retract",
+          "outcome": "SILENTLY-WRONG",
+          "answer": "Initech is in partnership with Umbrella.",
+          "retrieved": "- Initech no longer partners with Umbrella. (no longer valid)\n- Initech is in partnership with Umbrella."
+        },
+        {
+          "case": "ownership ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "support discontinued",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "case": "subscription cancelled",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "Zenith does not subscribe to Datadog.",
+          "retrieved": "- Zenith subscribes to Datadog. (no longer valid)\n- Zenith cancelled its subscription to Datadog."
+        },
+        {
+          "case": "reporting line ends",
+          "kind": "retract",
+          "outcome": "CORRECT",
+          "answer": "I don't know.",
+          "retrieved": "- Erin reports to Frank.\n- Erin no longer reports to Frank. (no longer valid)"
+        },
+        {
+          "case": "CONTROL hedge \u2014 must NOT delete",
+          "kind": "control",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Acme uses Redis for caching. (no longer valid)\n- Acme is considering dropping Redis."
+        },
+        {
+          "case": "CONTROL replacement \u2014 supersede, not retract",
+          "kind": "control",
+          "outcome": "SILENTLY-WRONG",
+          "answer": "Acme uses Sentry for error monitoring.",
+          "retrieved": "- Acme uses Sentry for error monitoring.\n- Acme moved from Sentry to Rollbar. (no longer valid)"
+        }
+      ],
+      "infra": "Neo4j server (required)"
+    }
+  ]
+}

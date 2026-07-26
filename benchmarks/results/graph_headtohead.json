@@ -1,0 +1,163 @@
+{
+  "model": "gpt-4o-mini",
+  "hops": 3,
+  "scenarios": 11,
+  "systems": [
+    {
+      "system": "Vayl (graph)",
+      "n": 11,
+      "silently_wrong": 0,
+      "correct": 8,
+      "missed": 3,
+      "write_ms": 2964.1512725421912,
+      "read_ms": 2710.4470606364803,
+      "results": [
+        {
+          "scenario": "ownership chain (2-hop)",
+          "outcome": "CORRECT",
+          "answer": "Globex owns Acme, the company Bob works for.",
+          "retrieved": "- Bob WORKS_AT Acme\n- Globex OWNED_BY Acme"
+        },
+        {
+          "scenario": "transitive dependency (2-hop)",
+          "outcome": "CORRECT",
+          "answer": "The auth service depends on the token service and redis.",
+          "retrieved": "- auth_service DEPENDS_ON token_service\n- token_service DEPENDS_ON redis"
+        },
+        {
+          "scenario": "location via employer (2-hop)",
+          "outcome": "CORRECT",
+          "answer": "Nora works in Munich.",
+          "retrieved": "- Nora WORKS_AT Zenith\n- Zenith HAS_HEADQUARTERS Munich"
+        },
+        {
+          "scenario": "supplier chain (2-hop)",
+          "outcome": "CORRECT",
+          "answer": "Our chip supplier is based in Santa Clara.",
+          "retrieved": "- Org BUYS_FROM Nvidia\n- Nvidia BASED_IN Santa Clara"
+        },
+        {
+          "scenario": "team \u2192 service ownership (2-hop)",
+          "outcome": "CORRECT",
+          "answer": "Dana manages the Platform team that owns the billing service.",
+          "retrieved": "- Dana HAS_MANAGER Platform team\n- Platform team OWNS billing_service"
+        },
+        {
+          "scenario": "co-membership (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Helen WORKS_IN Security team\n- Ivan WORKS_AT Security"
+        },
+        {
+          "scenario": "chained acquisition (3-hop)",
+          "outcome": "CORRECT",
+          "answer": "The company that acquired Carol's company, Initech, is headquartered in London.",
+          "retrieved": "- Carol FOUNDED Initech\n- Initech ACQUIRED Umbrella\n- Umbrella HEADQUARTERED_IN London"
+        },
+        {
+          "scenario": "multi-hop supply (3-hop)",
+          "outcome": "CORRECT",
+          "answer": "Cupertino.",
+          "retrieved": "- Org HAS_SUPPLIER Foxconn\n- Foxconn ASSEMBLES_FOR Apple\n- Apple IS_HEADQUARTERED_IN Cupertino"
+        },
+        {
+          "scenario": "re-pointed edge \u2014 graph supersede (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "scenario": "reporting line \u2014 graph supersede",
+          "outcome": "CORRECT",
+          "answer": "Erin reports to Grace.",
+          "retrieved": "- Erin REPORTS_TO Grace"
+        },
+        {
+          "scenario": "relation retract",
+          "outcome": "MISSED",
+          "answer": "Yes, ServiceA calls ServiceB.",
+          "retrieved": "- ServiceA CALLS ServiceB"
+        }
+      ],
+      "infra": "Neo4j projection (optional; SQLite is primary)"
+    },
+    {
+      "system": "Graphiti",
+      "n": 11,
+      "silently_wrong": 0,
+      "correct": 3,
+      "missed": 8,
+      "write_ms": 6675.319977500294,
+      "read_ms": 1560.88178418246,
+      "results": [
+        {
+          "scenario": "ownership chain (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Bob works at Acme. (no longer valid)\n- Acme is owned by Globex."
+        },
+        {
+          "scenario": "transitive dependency (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "scenario": "location via employer (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Nora works at Zenith. (no longer valid)\n- Zenith's headquarters is in Munich."
+        },
+        {
+          "scenario": "supplier chain (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Nvidia is based in Santa Clara."
+        },
+        {
+          "scenario": "team \u2192 service ownership (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Dana manages the Platform team."
+        },
+        {
+          "scenario": "co-membership (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "scenario": "chained acquisition (3-hop)",
+          "outcome": "CORRECT",
+          "answer": "The company that acquired Carol's company, Initech, is Umbrella, which is headquartered in London.",
+          "retrieved": "- Umbrella is headquartered in London.\n- Carol founded Initech. (no longer valid)\n- Initech was acquired by Umbrella."
+        },
+        {
+          "scenario": "multi-hop supply (3-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": "- Apple is headquartered in Cupertino.\n- Foxconn assembles for Apple. (no longer valid)"
+        },
+        {
+          "scenario": "re-pointed edge \u2014 graph supersede (2-hop)",
+          "outcome": "MISSED",
+          "answer": "I don't know.",
+          "retrieved": ""
+        },
+        {
+          "scenario": "reporting line \u2014 graph supersede",
+          "outcome": "CORRECT",
+          "answer": "Erin reports to Grace.",
+          "retrieved": "- Erin reports to Frank.\n- Erin now reports to Grace, not Frank. (no longer valid)"
+        },
+        {
+          "scenario": "relation retract",
+          "outcome": "CORRECT",
+          "answer": "No, ServiceA does not call ServiceB anymore.",
+          "retrieved": "- ServiceA does not call ServiceB anymore.\n- ServiceA calls ServiceB."
+        }
+      ],
+      "infra": "Neo4j server (required)"
+    }
+  ]
+}

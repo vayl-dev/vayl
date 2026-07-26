@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (package + dev tools)
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Import smoke test
+        run: python -c "from vayl.api import mcp_server, server; from vayl.storage import store, graph_store; from vayl.memory import llm_memory, reconcile; from vayl.telemetry import metrics; from vayl.security import crypto, audit; print('runtime imports OK')"
+
+      - name: Unit tests (offline, deterministic)
+        run: pytest
+
+      - name: Dependency vulnerability audit (advisory)
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install pip-audit
+          pip-audit --progress-spinner off || echo "::warning::pip-audit reported advisories — review before release"

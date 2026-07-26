@@ -1,0 +1,40 @@
+Vayl
+Copyright 2026 Abhishek Chauhan
+
+This product includes software developed at the Vayl project.
+
+--------------------------------------------------------------------------------
+Third-party attributions
+--------------------------------------------------------------------------------
+
+benchmarks/locomo/ and benchmarks/common/ contain a LOCOMO evaluation harness whose
+pipeline shape, CLI surface, metric definitions and *parity* judge prompt are derived
+from:
+
+    mem0ai/memory-benchmarks
+    https://github.com/mem0ai/memory-benchmarks
+    Copyright Mem0 (Embedchain Inc.)
+    Licensed under the Apache License, Version 2.0
+
+The derivation is deliberate and is the point of the exercise: reproducing their
+methodology exactly is what makes Vayl's parity score comparable to the score Mem0
+publishes. Specifically:
+
+  * benchmarks/locomo/prompts.py — PARITY_JUDGE_TEMPLATE is reproduced verbatim from
+    that project's benchmarks/locomo/prompts.py so that a "parity" run scores answers
+    under identical criteria. The STRICT_JUDGE_TEMPLATE in the same file is original
+    to Vayl and is NOT derived from their work.
+  * benchmarks/common/metrics.py — accuracy / group / multi-cutoff metric definitions
+    follow theirs (pass_threshold 0.5, percentage accuracy, per-cutoff breakdown) so
+    the reported numbers mean the same thing.
+  * benchmarks/common/vayl_client.py — mirrors the add/search/delete_user surface of
+    their Mem0Client so the same runner shape drives either system.
+
+The LOCOMO dataset itself is downloaded at runtime from its original authors and is
+not redistributed here:
+
+    snap-research/locomo
+    https://github.com/snap-research/locomo
+
+Deviations from the upstream methodology (the adversarial category, the strict judge)
+are documented in benchmarks/locomo/README.md rather than left implicit.

@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vayl-mcp"
+version = "0.1.0"
+description = "Vayl — reconciling memory for AI agents, over MCP. Remembers what's true now, forgets correctly."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Abhishek Chauhan", email = "ac12644@gmail.com" }]
+keywords = ["mcp", "memory", "agents", "llm", "reconciliation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mcp>=1.2",
+    "cryptography>=44",   # at-rest encryption + Argon2id VAYL_KEY KDF (Argon2id added in 44)
+]
+
+[project.urls]
+Homepage = "https://github.com/vayl-dev/vayl"
+Repository = "https://github.com/vayl-dev/vayl"
+Issues = "https://github.com/vayl-dev/vayl/issues"
+
+[project.optional-dependencies]
+# Optional Neo4j graph projection for deep multi-hop / relational queries.
+graph = ["neo4j>=5"]
+# Remote HTTP transport (vayl-server): a team-shareable, authenticated MCP endpoint.
+# starlette + httpx come transitively via `mcp`; uvicorn is the ASGI server to actually run it.
+server = ["uvicorn>=0.30"]
+# OIDC SSO (M5): verify IdP-issued ID tokens (JWT/RS256). cryptography is already a core dep.
+sso = ["pyjwt>=2"]
+# Postgres backend (M6): concurrent multi-writer storage for scale (foundation; validate live).
+postgres = ["psycopg[binary]>=3.1"]
+# HTTP connection pooling for the LLM/embedding endpoint — reuses keep-alive connections instead of
+# a fresh TCP+TLS handshake per call (~50-200ms/request). Optional: without it, urllib is used and
+# only the pooling is lost, so the core stays at two dependencies.
+pooled = ["urllib3>=2"]
+# Dev tooling: offline unit tests + lint (what CI runs).
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+vayl-mcp = "vayl.api.mcp_server:main"
+vayl-server = "vayl.api.server:main"
+vayl-license = "vayl.licensing.mint_license:main"   # vendor-side: keygen + mint customer licenses
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# Unit tests are offline and deterministic (no LLM/network). The LLM evals live
+# in benchmarks/ and are run manually — they are not part of the test suite.
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+# Benchmarks/research are exploratory scripts, not held to lint.
+extend-exclude = ["benchmarks", "research"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+# The codebase uses a deliberately compact one-liner style (semicolons, grouped
+# imports, single-line ifs). We keep the real checks (unused imports/vars via F,
+# whitespace via W, import order via I) and drop the purely-stylistic ones.
+ignore = ["E501", "E701", "E702", "E401", "E741"]

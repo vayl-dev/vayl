@@ -1,0 +1,1181 @@
+{
+  "config": {
+    "project_name": "datefix",
+    "system": "vayl",
+    "judge_mode": "both",
+    "extraction_model": "gpt-5-mini",
+    "read_model": "",
+    "embed_model": "text-embedding-3-small",
+    "answerer_model": "gpt-4o",
+    "judge_model": "gpt-4o",
+    "provider": "openai",
+    "top_k": 200,
+    "cutoffs": [
+      200
+    ],
+    "categories": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "conversations": "0-0",
+    "dataset_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+    "started_at": "2026-07-23T11:31:22.374274+00:00",
+    "finished_at": "2026-07-23T11:32:34.475421+00:00",
+    "vayl_version": ""
+  },
+  "ingest": [
+    {
+      "user_id": "locomo_conv_0",
+      "chunks": 30,
+      "elapsed_s": 59.43858312500015,
+      "stored": 8,
+      "current": 8,
+      "retired": 0
+    }
+  ],
+  "metrics": {
+    "overall_accuracy": 16.666666666666664,
+    "overall_avg_score": 16.666666666666664,
+    "total": 12,
+    "correct": 2,
+    "errors": 0,
+    "by_group": {
+      "multi-hop": {
+        "group_name": "multi-hop",
+        "total": 4,
+        "correct": 1,
+        "accuracy": 25.0,
+        "avg_score": 25.0
+      },
+      "open-domain": {
+        "group_name": "open-domain",
+        "total": 1,
+        "correct": 1,
+        "accuracy": 100.0,
+        "avg_score": 100.0
+      },
+      "temporal": {
+        "group_name": "temporal",
+        "total": 7,
+        "correct": 0,
+        "accuracy": 0.0,
+        "avg_score": 0.0
+      }
+    },
+    "by_cutoff": {
+      "top_200": {
+        "cutoff": "top_200",
+        "overall": {
+          "total": 12,
+          "correct": 2,
+          "errors": 0,
+          "accuracy": 16.666666666666664,
+          "avg_score": 16.666666666666664
+        },
+        "by_group": {
+          "multi-hop": {
+            "group_name": "multi-hop",
+            "total": 4,
+            "correct": 1,
+            "accuracy": 25.0,
+            "avg_score": 25.0
+          },
+          "open-domain": {
+            "group_name": "open-domain",
+            "total": 1,
+            "correct": 1,
+            "accuracy": 100.0,
+            "avg_score": 100.0
+          },
+          "temporal": {
+            "group_name": "temporal",
+            "total": 7,
+            "correct": 0,
+            "accuracy": 0.0,
+            "avg_score": 0.0
+          }
+        }
+      }
+    }
+  },
+  "strict_metrics": {
+    "overall_accuracy": 83.33333333333334,
+    "overall_avg_score": 83.33333333333334,
+    "total": 12,
+    "correct": 10,
+    "errors": 0,
+    "by_group": {
+      "multi-hop": {
+        "group_name": "multi-hop",
+        "total": 4,
+        "correct": 3,
+        "accuracy": 75.0,
+        "avg_score": 75.0
+      },
+      "open-domain": {
+        "group_name": "open-domain",
+        "total": 1,
+        "correct": 1,
+        "accuracy": 100.0,
+        "avg_score": 100.0
+      },
+      "temporal": {
+        "group_name": "temporal",
+        "total": 7,
+        "correct": 6,
+        "accuracy": 85.71428571428571,
+        "avg_score": 85.71428571428571
+      }
+    },
+    "by_cutoff": {
+      "top_200": {
+        "cutoff": "top_200",
+        "overall": {
+          "total": 12,
+          "correct": 10,
+          "errors": 0,
+          "accuracy": 83.33333333333334,
+          "avg_score": 83.33333333333334
+        },
+        "by_group": {
+          "multi-hop": {
+            "group_name": "multi-hop",
+            "total": 4,
+            "correct": 3,
+            "accuracy": 75.0,
+            "avg_score": 75.0
+          },
+          "open-domain": {
+            "group_name": "open-domain",
+            "total": 1,
+            "correct": 1,
+            "accuracy": 100.0,
+            "avg_score": 100.0
+          },
+          "temporal": {
+            "group_name": "temporal",
+            "total": 7,
+            "correct": 6,
+            "accuracy": 85.71428571428571,
+            "avg_score": 85.71428571428571
+          }
+        }
+      }
+    }
+  },
+  "staleness": {
+    "total": 12,
+    "judged": 12,
+    "stale": 0,
+    "ambiguous": 0,
+    "stale_rate": 0.0,
+    "ambiguous_rate": 0.0
+  },
+  "llm_calls": {
+    "answerer": 12,
+    "judge": 24,
+    "answerer_rate_limited": 0,
+    "judge_rate_limited": 0
+  },
+  "evaluations": [
+    {
+      "conv_idx": 0,
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold_answer": "7 May 2023",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 0.5,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include the date of Caroline's visit to the LGBTQ support group, which is the key fact in the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer correctly abstains as the gold answer indicates a specific date.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include the date of Caroline's visit to the LGBTQ support group, which is the key fact in the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "When did Melanie paint a sunrise?",
+      "gold_answer": "2022",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1038.2,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include the correct year 2022, which is the key fact from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer correctly abstains as the gold answer indicates the information is absent.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include the correct year 2022, which is the key fact from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold_answer": "Psychology, counseling certification",
+      "category": 3,
+      "category_name": "open-domain",
+      "search_ms": 1042.6,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Counseling or mental health support.",
+          "parity": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer includes 'counseling,' which is a correct item from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer captures the same fields as the gold answer using different wording.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "CORRECT",
+          "score": 1.0,
+          "reasoning": "The generated answer includes 'counseling,' which is a correct item from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "What did Caroline research?",
+      "gold_answer": "Adoption agencies",
+      "category": 1,
+      "category_name": "multi-hop",
+      "search_ms": 1050.2,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Adoption agencies",
+          "parity": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer matches the gold answer exactly, indicating the same research topic."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer matches the gold answer exactly, indicating the same research topic.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "CORRECT",
+          "score": 1.0,
+          "reasoning": "The generated answer matches the gold answer exactly, indicating the same research topic.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "What is Caroline's identity?",
+      "gold_answer": "Transgender woman",
+      "category": 1,
+      "category_name": "multi-hop",
+      "search_ms": 1054.9,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned.",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include any correct items from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer abstains, which is correct since the gold answer indicates the information is absent.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include any correct items from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "When did Melanie run a charity race?",
+      "gold_answer": "The sunday before 25 May 2023",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1055.2,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include any correct items from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The gold answer indicates the information is absent, and the generated answer correctly abstains.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include any correct items from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "When is Melanie planning on going camping?",
+      "gold_answer": "June 2023",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1055.8,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned.",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include the correct date or any part of the gold answer."
+          },
+          "strict": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The gold answer provides a specific date, while the generated answer abstains, which is incorrect.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include the correct date or any part of the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "WRONG",
+          "strict_score": 0.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "What is Caroline's relationship status?",
+      "gold_answer": "Single",
+      "category": 1,
+      "category_name": "multi-hop",
+      "search_ms": 1056.0,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned.",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include the correct item from the gold answer, which is 'Single'."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer correctly abstains as the gold answer indicates the information is absent.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include the correct item from the gold answer, which is 'Single'.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "When did Caroline give a speech at a school?",
+      "gold_answer": "The week before 9 June 2023",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1056.2,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include any correct items from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer correctly abstains as the gold answer indicates the information is absent.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include any correct items from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "gold_answer": "The week before 9 June 2023",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1056.5,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned.",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include any correct items from the gold answer."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The generated answer correctly abstains as the gold answer indicates the information is absent.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include any correct items from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "How long has Caroline had her current group of friends for?",
+      "gold_answer": "4 years",
+      "category": 2,
+      "category_name": "temporal",
+      "search_ms": 1056.6,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned.",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not include the correct duration of 4 years, nor any duration at all."
+          },
+          "strict": {
+            "judgment": "CORRECT",
+            "score": 1.0,
+            "reasoning": "The gold answer indicates the information is absent, and the generated answer correctly abstains.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not include the correct duration of 4 years, nor any duration at all.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "CORRECT",
+          "strict_score": 1.0
+        }
+      }
+    },
+    {
+      "conv_idx": 0,
+      "question": "Where did Caroline move from 4 years ago?",
+      "gold_answer": "Sweden",
+      "category": 1,
+      "category_name": "multi-hop",
+      "search_ms": 1056.9,
+      "retrieved": 8,
+      "memories": [
+        {
+          "id": 1,
+          "memory": "caroline_career_interest: counseling_or_mental_health_support  (said on 08 May 2023)",
+          "status": "current",
+          "when": "08 May 2023"
+        },
+        {
+          "id": 2,
+          "memory": "caroline_personal_goal: wants_to_adopt_and_provide_loving_home  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 3,
+          "memory": "caroline_researching_topic: adoption_agencies  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 4,
+          "memory": "caroline_emotional_state: hopeful_and_optimistic  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 5,
+          "memory": "caroline_received_support: support_from_friends_and_mentors  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 6,
+          "memory": "caroline_shared_resource: adoption_agency_brochure_image  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 7,
+          "memory": "caroline_selected_adoption_agency_reason: agency_supports_lgbtq_plus_and_shows_inclusivity  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        },
+        {
+          "id": 8,
+          "memory": "caroline_values_inclusive_support: inclusivity_and_support_mattered_in_agency_choice  (said on 25 May 2023)",
+          "status": "current",
+          "when": "25 May 2023"
+        }
+      ],
+      "cutoff_results": {
+        "top_200": {
+          "answer": "Not mentioned",
+          "parity": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The generated answer does not mention Sweden, which is the correct item from the gold answer."
+          },
+          "strict": {
+            "judgment": "WRONG",
+            "score": 0.0,
+            "reasoning": "The gold answer provides a specific fact, but the generated answer abstains, which is incorrect.",
+            "stale": false,
+            "ambiguous": false
+          },
+          "judgment": "WRONG",
+          "score": 0.0,
+          "reasoning": "The generated answer does not mention Sweden, which is the correct item from the gold answer.",
+          "stale": false,
+          "ambiguous": false,
+          "strict_judgment": "WRONG",
+          "strict_score": 0.0
+        }
+      }
+    }
+  ]
+}
