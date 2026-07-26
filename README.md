@@ -212,27 +212,29 @@ Bigger models handle the subjective edges better (see [quality](#quality-honest)
 
 ## Why Vayl?
 
-Two kinds of memory exist today, and both have a gap Vayl closes:
+Two common kinds of agent memory each leave the same gap Vayl closes:
 
-- **Additive stores (e.g. Mem0)** append every fact and can rank a stale one first. In a live test against `api.mem0.ai`: tell it you switched Zustand → Redux, ask what you use — it returns **Zustand #1**.
-- **Graph stores (e.g. Zep / Graphiti)** reconcile well, but are heavy (a graph DB + ~15 LLM calls per fact) and **can't model removal** — "we dropped X" leaves X marked valid.
+- **Additive memory** appends every fact and retrieves by similarity — so a value that changed can still rank first, and the model is left to guess which one is current.
+- **Temporal-graph memory** reconciles well but is heavy (a graph database plus many LLM calls per fact), and most designs **can't model removal** — "we dropped X" leaves X marked valid.
 
-Vayl reconciles like a graph store, at additive-store cost, and treats **removal as first-class**.
+Vayl reconciles at additive-store cost, without a graph database, and treats **removal as first-class**: a new value supersedes the old, a retraction actually removes, and history is kept.
 
-**Honest about parity:** on plain contradiction ("switched X → Y") with a strong model, Graphiti is just as accurate — Vayl doesn't reconcile "better" across the board. Its real edges are **correct forgetting, lower cost, current-truth over additive stores, and running free & local.**
+**Honest about scope:** on a plain contradiction ("switched X → Y") a strong model reconciles well in most designs — Vayl isn't "more accurate" across the board. Its edges are **correct forgetting, low cost, current-truth by construction, and running free & local.**
 
 ---
 
 ## Benchmarks
 
-Every number is reproducible from `benchmarks/` — run the scripts yourself.
+Every number is reproducible from `benchmarks/` — run the scripts yourself. These are Vayl's own
+results on the suites in this repo (single-run, author-written — strong reproducible signals, not
+third-party audits).
 
-| Result | Vayl | Compared to |
-|--------|------|-------------|
-| **Retraction** ("we dropped X"), gpt-4o, 10 cases | **10 / 10** removed | Graphiti **0 / 10** (keeps it valid or extracts nothing) |
+| Metric | Vayl | What it means |
+|--------|------|---------------|
+| **Retraction** ("we dropped X"), gpt-4o, 10 cases | **10 / 10** removed | removal is first-class, not a re-ranked fact |
 | **Silently-wrong** (confidently returns a false current value) — 255 adversarial trials, Haiku | **0.4%** | flags/degrades instead of guessing |
 | **Messy real input** — 30 cases, 12 domains × 14 noise types, gpt-4o | **0%** silently-wrong | typos, slang, emoji, multi-fact msgs |
-| **Cost per fact** | **~2 LLM calls, no graph DB** | Graphiti ~15 calls + Neo4j |
+| **Cost per fact** | **~2 LLM calls, no graph DB** | bounded top-k retrieval, no whole-graph scan |
 
 ```bash
 python benchmarks/evaluations/eval_reconcile.py     # full LLM pipeline vs a labeled set → silently-wrong rate

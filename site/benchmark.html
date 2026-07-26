@@ -114,7 +114,7 @@
   <div class="wrap">
     <p class="eyebrow">Benchmark · reconciling memory at scale</p>
     <h1>When the facts keep changing, does your memory still tell the truth?</h1>
-    <p class="lede">We ran Vayl head-to-head against Mem0 and Graphiti on the one thing an agent's
+    <p class="lede">We ran Vayl head-to-head against an additive store and a temporal graph on the one thing an agent's
       memory has to get right: after a fact is updated many times, does a lookup return the
       <em>current</em> value — or a stale one, confidently?</p>
     <div class="setup">
@@ -127,7 +127,7 @@
 <section>
   <div class="wrap">
     <p class="kicker">The headline</p>
-    <h2>Vayl returns the wrong value 0% of the time. Mem0, one time in three.</h2>
+    <h2>Vayl returns the wrong value 0% of the time. An additive store, one time in three.</h2>
     <p class="sub">“Silently-wrong” = the store confidently returns a stale/superseded value as if it
       were current. It is the single failure that makes a memory untrustworthy.</p>
     <div class="stats">
@@ -137,12 +137,12 @@
         <div class="lab">silently-wrong · <span class="num">199/200</span> correct</div>
       </div>
       <div class="stat lose">
-        <span class="who">Mem0</span>
+        <span class="who">Additive store</span>
         <div class="big">32.5%</div>
         <div class="lab">silently-wrong · <span class="num">35/200</span> correct</div>
       </div>
     </div>
-    <p class="caveat">Graphiti (sampled): its extraction was unreliable at this model tier and
+    <p class="caveat">A temporal graph (sampled): its extraction was unreliable at this model tier and
       answered none of its queries, so we make <b>no</b> quality claim against it here — see method.</p>
   </div>
 </section>
@@ -150,8 +150,8 @@
 <section>
   <div class="wrap">
     <p class="kicker">Why — memory that never forgets</p>
-    <h2>Mem0 kept every version. Vayl kept only what's true now.</h2>
-    <p class="sub">Across the run, Mem0 stored one memory <em>per write</em> — four times the facts that
+    <h2>An additive store kept every version. Vayl kept only what's true now.</h2>
+    <p class="sub">Across the run, an additive store stored one memory <em>per write</em> — four times the facts that
       actually exist. Three quarters of its memory is stale contradictions the reader has to sift.
       Vayl retires superseded facts on write, so its active memory is 100% signal.</p>
 
@@ -162,7 +162,7 @@
         <div class="track"><div class="seg cur" style="width:100%">199 current · 0 stale</div></div>
       </div>
       <div class="barrow">
-        <div class="barhead"><span class="name">Mem0 <span>— stored vs current</span></span>
+        <div class="barhead"><span class="name">an additive store <span>— stored vs current</span></span>
           <span class="tot num">800 stored</span></div>
         <div class="track">
           <div class="seg cur" style="width:25%">200 current</div>
@@ -181,11 +181,11 @@
   <div class="wrap">
     <p class="kicker">The receipt</p>
     <h2>One fact. Five “current” answers.</h2>
-    <p class="sub">This is exactly what Mem0 stored for a single user's <b>primary database</b> after
+    <p class="sub">This is exactly what an additive store stored for a single user's <b>primary database</b> after
       four updates — every version tagged as current, all on the same day. When the agent asks
       “what database do we use?”, the reader can't tell which is real.</p>
     <div class="ledger">
-      <div class="lh"><span>Mem0 — memories for one fact (user u0, “primary database”)</span><span>infer=True</span></div>
+      <div class="lh"><span>an additive store — memories for one fact (user u0, “primary database”)</span><span>infer=True</span></div>
       <ul>
         <li class="is-stale"><span class="tag stale-tag">stale</span>switched to CockroachDB … as of July 22, 2026</li>
         <li class="is-stale"><span class="tag stale-tag">stale</span>moved to MySQL … as of July 22, 2026</li>
@@ -211,19 +211,18 @@
           <tr class="vayl"><td>Vayl</td><td class="n g">0.0% <small>(0/200)</small></td>
             <td class="n">199/200</td><td class="n">199 / 199</td><td class="n">2.8s</td>
             <td class="n">1.2s</td><td>SQLite — no server</td></tr>
-          <tr><td>Mem0</td><td class="n r">32.5% <small>(65/200)</small></td>
+          <tr><td>Additive store</td><td class="n r">32.5% <small>(65/200)</small></td>
             <td class="n">35/200</td><td class="n">800 / 800</td><td class="n">3.8s</td>
-            <td class="n">2.2s</td><td>Qdrant vector store</td></tr>
-          <tr><td>Graphiti <small>(not its axis*)</small></td><td class="n">0/32</td>
+            <td class="n">2.2s</td><td>vector store</td></tr>
+          <tr><td>Temporal graph <small>(not its axis*)</small></td><td class="n">0/32</td>
             <td class="n">0/32</td><td class="n">—</td><td class="n">9.0s</td>
             <td class="n">1.8s</td><td>Neo4j server</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="caveat">*This test is <b>slot supersession — not Graphiti's axis.</b> Graphiti is a
-      relational/temporal graph; on single-attribute updates it retrieved nothing for most queries, so
+    <p class="caveat">*This test is <b>slot supersession — not the graph store's axis.</b> A temporal graph indexes relationships; on single-attribute updates it retrieved nothing for most queries, so
       it neither passed nor failed (0 correct <em>and</em> 0 silently-wrong). Its ~9 s/write + Neo4j also
-      make full-scale runs impractical, so it was sampled to 8 users. We test Graphiti <b>fairly, on its
+      make full-scale runs impractical, so it was sampled to 8 users. We test a temporal graph <b>fairly, on its
       own axis, in the next section</b> — where it's competitive.</p>
   </div>
 </section>
@@ -232,21 +231,21 @@
   <div class="wrap">
     <p class="kicker">The other axis — relational</p>
     <h2>And on the graph's home turf? Still zero silently-wrong.</h2>
-    <p class="sub">The test above is Vayl's axis — a fact changing over time. This one is Graphiti's:
+    <p class="sub">The test above is Vayl's axis — a fact changing over time. This one is the graph store's:
       11 multi-hop relational queries (ownership chains, transitive dependencies, 3-hop supply) where you
-      must chain edges to answer. Vayl runs an <em>optional</em> graph projection; Graphiti <em>is</em> a graph.</p>
+      must chain edges to answer. Vayl runs an <em>optional</em> graph projection; a temporal graph <em>is</em> a graph.</p>
     <div class="scroll">
       <table>
         <thead><tr><th>System</th><th>Silently-wrong</th><th>Correct</th><th>3-hop chains</th><th>Write</th><th>Infra</th></tr></thead>
         <tbody>
           <tr class="vayl"><td>Vayl (graph)</td><td class="n g">0/11</td><td class="n">8/11</td>
             <td class="n g">both ✓</td><td class="n">3.0s</td><td>optional projection on SQLite</td></tr>
-          <tr><td>Graphiti</td><td class="n">0/11</td><td class="n">3/11*</td>
+          <tr><td>Temporal graph</td><td class="n">0/11</td><td class="n">3/11*</td>
             <td class="n">both ✓</td><td class="n">6.7s</td><td>required Neo4j server</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="caveat">*Graphiti was competitive where it extracted — both 3-hop chains, and the relation
+    <p class="caveat">*A temporal graph was competitive where it extracted — both 3-hop chains, and the relation
       retract — but its extraction was unreliable at this model tier (8 of 11 returned nothing). We make
       <b>no</b> quality claim over it; a stronger model would lift its numbers. The honest point is
       narrower and still strong: even on the relational axis, Vayl's optional graph holds <b>0%
@@ -286,11 +285,11 @@
           <b>one shared answer-synthesizer</b>. Each store does its own native retrieval; the retrieved
           facts then pass through the same prompt to produce the answer that's scored. This isolates
           <em>retrieval + reconciliation</em> quality from prompt engineering.</p>
-        <p><b>Graphiti got full credit for its design:</b> its temporal validity
+        <p><b>a temporal graph got full credit for its design:</b> its temporal validity
           (<code>invalid_at</code>) was passed through so invalidated edges are marked, not hidden. It
           still couldn't extract reliably at this model tier — a real limitation, honestly reported,
           not a win we claim.</p>
-        <p><b>Mem0 ran as documented</b> — its intelligent mode (<code>infer=True</code>). The
+        <p><b>an additive store ran as documented</b> — its intelligent mode (<code>infer=True</code>). The
           accumulation of stale memories is its genuine default behavior under same-session churn, not
           a misconfiguration.</p>
         <p><b>Honest limits:</b> single run, synthetic (but realistic) churn, one model tier. Vayl's

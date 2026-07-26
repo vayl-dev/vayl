@@ -324,7 +324,7 @@ footer.site .colophon{padding-top:var(--s4);color:var(--faint);font-family:var(-
     <div class="cols2" style="margin-top:var(--s5)">
       <div>
         <div class="term">
-          <div class="cap"><span>additive store — Mem0</span></div>
+          <div class="cap"><span>additive store</span></div>
           <pre><span class="pr">&gt;</span> add(<span class="k">"We use Zustand for state."</span>)
 <span class="pr">&gt;</span> add(<span class="k">"We switched to Redux. Zustand is out."</span>)
 <span class="pr">&gt;</span> search(<span class="k">"what do we use for state?"</span>)
@@ -336,7 +336,7 @@ footer.site .colophon{padding-top:var(--s4);color:var(--faint);font-family:var(-
       </div>
       <div>
         <div class="term">
-          <div class="cap"><span>graph store — Graphiti</span></div>
+          <div class="cap"><span>graph store</span></div>
           <pre><span class="pr">&gt;</span> add(<span class="k">"We use Sentry for error monitoring."</span>)
 <span class="pr">&gt;</span> add(<span class="k">"We dropped Sentry last month."</span>)
 <span class="pr">&gt;</span> search(<span class="k">"what do we use for monitoring?"</span>)
@@ -380,19 +380,19 @@ footer.site .colophon{padding-top:var(--s4);color:var(--faint);font-family:var(-
     <div class="book" style="margin-top:var(--s5)">
       <div class="brow">
         <div>
-          <div class="label">Silently-wrong at scale — head to head with Mem0</div>
-          <p class="detail">800 fact-updates across 50 users, same model, same synthesizer. Additive memory keeps every version and returns a stale value one lookup in three (32.5%); Vayl retires superseded facts on write, so its active set stays true — and stores 199 rows where Mem0 holds 800. <a href="https://claude.ai/code/artifact/c7a645bb-623c-456c-a627-43e30d143018" style="color:var(--accent)">See the full benchmark →</a></p>
+          <div class="label">Silently-wrong at scale</div>
+          <p class="detail">800 fact-updates across 50 users, same model, same synthesizer. Additive memory keeps every version and returns a stale value one lookup in three (32.5%); Vayl retires superseded facts on write, so its active set stays true — and stores 199 rows where an additive store holds 800. <a href="https://claude.ai/code/artifact/c7a645bb-623c-456c-a627-43e30d143018" style="color:var(--accent)">See the full benchmark →</a></p>
           <code class="cmd">python benchmarks/evaluations/scale_bench.py</code>
         </div>
-        <div class="fig">0%<span class="vs">vs 32.5% — Mem0, 800 updates</span></div>
+        <div class="fig">0%<span class="vs">vs 32.5% — additive store, 800 updates</span></div>
       </div>
       <div class="brow">
         <div>
-          <div class="label">Multi-hop relational — on Graphiti's home turf</div>
+          <div class="label">Multi-hop relational — a graph's home turf</div>
           <p class="detail">Eleven relational queries — ownership chains, transitive dependencies, 3-hop supply — the axis graphs are built for. Vayl's optional graph holds 0% silently-wrong and 8/11 correct (both 3-hop chains), delivered as an SQLite projection, not a required Neo4j deployment. <a href="https://claude.ai/code/artifact/c7a645bb-623c-456c-a627-43e30d143018" style="color:var(--accent)">See the full benchmark →</a></p>
           <code class="cmd">python benchmarks/evaluations/graph_headtohead.py</code>
         </div>
-        <div class="fig">0%<span class="vs">silently-wrong · relational, vs Graphiti</span></div>
+        <div class="fig">0%<span class="vs">silently-wrong · relational</span></div>
       </div>
       <div class="brow">
         <div>
@@ -413,10 +413,10 @@ footer.site .colophon{padding-top:var(--s4);color:var(--faint);font-family:var(-
       <div class="brow">
         <div>
           <div class="label">Cost per write</div>
-          <p class="detail">Extract and reconcile against a single SQLite file — no graph pipeline, no Neo4j to operate. In the head-to-head, Vayl’s writes ran ~2.8&thinsp;s against Graphiti’s ~6–9&thinsp;s (a Neo4j server plus multi-step edge extraction).</p>
+          <p class="detail">Extract and reconcile against a single SQLite file — no graph pipeline, no Neo4j to operate. Vayl’s writes run ~2.8&thinsp;s, versus the ~6–9&thinsp;s typical of a graph pipeline (a graph server plus multi-step edge extraction).</p>
           <code class="cmd">python benchmarks/evaluations/compare_systems.py</code>
         </div>
-        <div class="fig">~2.8s<span class="vs">write · vs ~6–9s Graphiti</span></div>
+        <div class="fig">~2.8s<span class="vs">write · vs ~6–9s graph pipeline</span></div>
       </div>
 
       <div class="bsub">

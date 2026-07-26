@@ -115,7 +115,7 @@
         That’s a healthy per-tenant graph — not a corpus knowledge graph, and we claim nothing there.</li>
     </ul>
     <p class="caveat">If those are your requirements, the honest recommendation is Microsoft GraphRAG,
-      Zep/Graphiti, or a LlamaIndex property graph. Vayl sits beside them, not against them.</p>
+      temporal-graph stores, or a a property-graph system. Vayl sits beside them, not against them.</p>
   </div>
 </section>
 
@@ -131,11 +131,11 @@
         <thead><tr><th>System</th><th>Returns a stale value</th><th>Facts stored / actually current</th></tr></thead>
         <tbody>
           <tr class="vayl"><td>Vayl</td><td class="n g">0.0% <small>(0/200)</small></td><td class="n">199 / 199</td></tr>
-          <tr><td>Mem0 <small>(additive vector store)</small></td><td class="n r">32.5% <small>(65/200)</small></td><td class="n">800 / 800</td></tr>
+          <tr><td>Additive store</td><td class="n r">32.5% <small>(65/200)</small></td><td class="n">800 / 800</td></tr>
         </tbody>
       </table>
     </div>
-    <p style="margin-top:20px">Mem0 appended a new memory on every update instead of retiring the old
+    <p style="margin-top:20px">An additive store appended a new memory on every update instead of retiring the old
       one — <b>800 memories for 200 facts</b>. For one user’s <code>primary database</code> it held
       <b>five contradictory values</b>, all timestamped the same day. The reader sees several
       equally-current answers and can’t choose. That ambiguity compounds with every revision; a
@@ -148,12 +148,12 @@
         <thead><tr><th>System</th><th>Stale value returned</th><th>Removals handled</th><th>Over-deletion controls kept</th></tr></thead>
         <tbody>
           <tr class="vayl"><td>Vayl</td><td class="n g">0/14</td><td class="n">12/12</td><td class="n g">2/2</td></tr>
-          <tr><td>Mem0</td><td class="n">1/14</td><td class="n">11/12</td><td class="n">2/2</td></tr>
-          <tr><td>Graphiti</td><td class="n">3/14</td><td class="n">10/12</td><td class="n r">0/2</td></tr>
+          <tr><td>Additive store</td><td class="n">1/14</td><td class="n">11/12</td><td class="n">2/2</td></tr>
+          <tr><td>Temporal graph</td><td class="n">3/14</td><td class="n">10/12</td><td class="n r">0/2</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="caveat"><b>Graphiti retracts well</b> — 10 of 12. An earlier claim of ours that it
+    <p class="caveat"><b>A temporal graph retracts well</b> — 10 of 12. An earlier claim of ours that it
       couldn’t retract at all did not survive a proper benchmark, and we corrected it. Where it
       struggled was the opposite direction: it deleted a still-true fact on a hedged “considering
       dropping Redis”, and returned a superseded value on a replacement. Deleting too eagerly is a
@@ -209,7 +209,7 @@ plan = vayl.<span class="k">recall</span>("what plan is the customer on?", user_
     (<code>benchmarks/evaluations/scale_bench.py</code>, <code>retraction_battery.py</code>,
     <code>compare_systems.py</code>). Results are single-run and run-to-run variance is visible, so
     small differences shouldn’t be over-read. We also report where we don’t win: on clean, low-churn
-    supersession the three systems are close, and on multi-hop relational queries Graphiti had the
+    supersession the three systems are close, and on multi-hop relational queries a temporal graph had the
     fastest reads in the study. The advantage we can defend is narrow and specific — <b>churn,
     removal, ambiguity and cost</b> — not “better memory”.
   </div>

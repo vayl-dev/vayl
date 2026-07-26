@@ -34,8 +34,8 @@ Stated plainly, so an evaluation doesn't waste your time:
   traversal). That is a healthy per-tenant graph; it is not a corpus knowledge graph, and we make no
   claim there.
 
-If those are your requirements, the honest recommendation is Microsoft GraphRAG, Zep/Graphiti, or a
-LlamaIndex property graph. Vayl sits beside them, not against them.
+If those are your requirements, the honest recommendation is a dedicated GraphRAG or knowledge-graph
+system. Vayl sits beside those, not against them.
 
 ## The gap GraphRAG leaves
 
@@ -49,12 +49,13 @@ current-value queries; identical model, embedder, and answer-synthesizer for eve
 | System | Returns a stale value | Facts stored / actually current |
 |---|---:|---:|
 | **Vayl** | **0.0%** (0/200) | **199 / 199** |
-| Mem0 (additive vector store) | **32.5%** (65/200) | **800 / 800** |
+| Additive vector store | **32.5%** (65/200) | **800 / 800** |
 
-Mem0 appended a new memory on every update instead of retiring the old one — 800 memories for 200
-facts. For a single user's `primary database` it held **five contradictory values**, all timestamped
-the same day. At read time the reader sees several equally-current answers and cannot choose. The
-ambiguity compounds with every revision; a reconciling store stays flat at one value per fact.
+An additive store appends a new memory on every update instead of retiring the old one — 800 memories
+for 200 facts. For a single user's `primary database` (revised four times) it held **several
+contradictory values**, all timestamped the same day. At read time the reader sees several
+equally-current answers and cannot choose. The ambiguity compounds with every revision; a reconciling
+store stays flat at one value per fact.
 
 **On removal without replacement** — "we dropped Sentry", "Alice left" — across 14 cases including two
 controls that must *not* delete:
@@ -62,13 +63,13 @@ controls that must *not* delete:
 | System | Stale value returned | Removals handled | Over-deletion controls kept |
 |---|---:|---:|---:|
 | **Vayl** | **0/14** | **12/12** | **2/2** |
-| Mem0 | 1/14 | 11/12 | 2/2 |
-| Graphiti | 3/14 | 10/12 | **0/2** |
+| Additive vector store | 1/14 | 11/12 | 2/2 |
+| Temporal graph | 3/14 | 10/12 | **0/2** |
 
-Two honest notes on that table. **Graphiti retracts well** — 10 of 12; an earlier claim of ours that
-it could not retract at all did not survive a proper benchmark, and we corrected it. Where it
-struggled was the opposite direction: it deleted a still-true fact on a hedged *"considering dropping
-Redis"*, and returned a superseded value on a replacement. Deleting too eagerly is a failure too,
+Two honest notes on that table. A temporal graph **retracts well** (10 of 12) — an earlier claim of ours
+that graph stores couldn't retract at all did not survive a proper benchmark, and we corrected it. Where
+that approach struggled was the opposite direction: it deleted a still-true fact on a hedged *"considering
+dropping Redis"*, and returned a superseded value on a replacement. Deleting too eagerly is a failure too,
 which is why the controls are in the suite.
 
 ## How they compose
@@ -115,10 +116,10 @@ changes and you get whichever chunk ranks highest.
 ## Honest notes
 
 These benchmarks are **vendor-run** — we build Vayl. To limit the bias we fixed the model, embedder
-and answer-synthesizer across all systems, ran each competitor in its documented default
+and answer-synthesizer across all systems, ran each comparison system in its documented default
 configuration, and released the harnesses so the numbers can be re-run
 (`benchmarks/evaluations/scale_bench.py`, `retraction_battery.py`, `compare_systems.py`). Results are
 single-run and run-to-run variance is visible, so small differences should not be over-read. We also
-report where we do **not** win: on clean, low-churn supersession the three systems are close, and on
-multi-hop relational queries Graphiti had the fastest reads in the study. The advantage we can defend
-is narrow and specific — **churn, removal, ambiguity, and cost** — not "better memory".
+report where we do **not** win: on clean, low-churn supersession the approaches are close, and on
+multi-hop relational queries a dedicated graph had the fastest reads in the study. The advantage we can
+defend is narrow and specific — **churn, removal, ambiguity, and cost** — not "better memory".
