@@ -1,5 +1,6 @@
 # Vayl
 
+[![PyPI](https://img.shields.io/pypi/v/vayl-mcp?color=346DDB)](https://pypi.org/project/vayl-mcp/)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14t-blue)
 ![Tests](https://img.shields.io/badge/tests-475%20passing-brightgreen)
@@ -32,7 +33,7 @@ New to it? Jump to [Quickstart](#quickstart-2-min) · [Why Vayl?](#why-vayl) · 
 ## Quickstart (~2 min)
 
 ```bash
-pip install .                 # from this repo
+pip install vayl-mcp          # from PyPI
 ```
 
 Add to your MCP client (Claude Desktop / Cursor) config:

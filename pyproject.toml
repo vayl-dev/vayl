@@ -27,6 +27,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/vayl-dev/vayl"
+Documentation = "https://vayl.gitbook.io/vayl-docs"
 Repository = "https://github.com/vayl-dev/vayl"
 Issues = "https://github.com/vayl-dev/vayl/issues"
 
