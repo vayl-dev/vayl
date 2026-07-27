@@ -33,6 +33,10 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
+          # A fine-grained PAT with `Administration: read` lets Scorecard read the
+          # repo's branch-protection settings (the default token can't). Falls back
+          # to the workflow token if the secret isn't set — so this is safe either way.
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
           # Publish to the public Scorecard dashboard so the README badge resolves.
           publish_results: true
 

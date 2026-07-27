@@ -184,4 +184,17 @@ not by itself make your processing compliant.
 
 ## Reporting a vulnerability
 
-Please report security issues privately to the maintainer rather than opening a public issue.
+Please report security issues **privately** — do not open a public issue or PR.
+
+- **Preferred:** GitHub [private vulnerability reporting](https://github.com/vayl-dev/vayl/security/advisories/new) (repo → **Security** → **Report a vulnerability**).
+- **Email:** ac12644@gmail.com
+
+Include a description, the affected version or commit, and steps to reproduce. We aim to
+**acknowledge within 3 business days**, agree a remediation timeline after triage, and credit
+reporters who want it. Please allow a reasonable window to ship a fix before public disclosure
+(coordinated disclosure).
+
+### Supported versions
+
+Security fixes target the **latest released version** (`main`). Older versions are not maintained;
+upgrade to receive fixes.
