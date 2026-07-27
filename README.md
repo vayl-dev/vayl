@@ -5,6 +5,7 @@
 ![Tests](https://img.shields.io/badge/tests-475%20passing-brightgreen)
 ![Protocol](https://img.shields.io/badge/protocol-MCP-black)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
+[![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
 
 **Memory for AI agents that stays current.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
 
@@ -21,6 +22,8 @@
 - 🗑️ **Removal is first-class** — "we dropped X" actually *retracts* X. Graph memory stores can't model this; additive stores never do.
 - 🕰️ **History is kept and auditable** — ask what's true *now* or what was true *before*; every change is on a tamper-evident, signed audit chain.
 - 🔌 **Local, cheap, pluggable** — two core dependencies, SQLite by default (no server to run), ~2 LLM calls per fact, and it speaks MCP so any agent client plugs in.
+
+📚 **Full documentation:** [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) — guides, MCP tool reference, tutorials, and deployment.
 
 New to it? Jump to [Quickstart](#quickstart-2-min) · [Why Vayl?](#why-vayl) · [How it works](#how-it-works) · [Contributing](#contributing).
 
@@ -208,7 +211,7 @@ Bigger models handle the subjective edges better (see [quality](#quality-honest)
 
 ---
 
-**Building something?** See [`USE_CASES.md`](docs/USE_CASES.md) — 10 worked examples (coding assistant, support/CRM, personal assistant, multi-agent, e-commerce, DevOps, healthcare, tutoring…) with the exact scoping and tool calls for each.
+**Building something?** See the [docs site](https://vayl.gitbook.io/vayl-docs) — worked examples and tutorials (coding assistant, support/CRM, personal assistant, multi-agent, e-commerce, DevOps, healthcare, tutoring…) with the exact scoping and tool calls for each.
 
 ## Why Vayl?
 
@@ -494,6 +497,6 @@ By contributing, you agree your contributions are licensed under Apache-2.0.
 Secure-by-default for local/on-prem use: **encrypted at rest by default, and fail-closed** — if encryption (or audit signing) is on but unavailable, Vayl refuses to start rather than silently run plaintext; only an explicit `VAYL_ENCRYPT=off` / `VAYL_SIGN=off` disables them. The encrypted scope covers everything that can carry personal data: statement content + embeddings, audit detail, **decision snapshots, receipt payloads, tool-error messages, and principal names** (identifiers and structure stay plaintext for querying; auto-key, `VAYL_KEY` passphrase, or `VAYL_KMS=vault`). **No telemetry — the only outbound call is the LLM/embedding endpoint you configure** (that choice, not Vayl, sets your data-residency posture: point it at a self-hosted or EU-region endpoint if you need one; the database on disk stays encrypted either way), CSRF-hardened, parameterized SQL. Threat model, shared-responsibility matrix, and exact encryption scope: [`SECURITY.md`](SECURITY.md). EU deployment (GDPR + AI Act mapping, controller responsibilities, DPO checklist): [`COMPLIANCE.md`](COMPLIANCE.md). Not third-party audited and not a compliance guarantee — run your own review, DPO sign-off, and pen test before production.
 
 **High-stakes deployments** (clinical, financial, legal) — configuration, and an honest list of what
-Vayl does *not* yet provide: [`docs/HIGH_STAKES.md`](docs/HIGH_STAKES.md).
+Vayl does *not* yet provide: see the [docs site](https://vayl.gitbook.io/vayl-docs).
 
 Apache-2.0.
