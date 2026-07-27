@@ -1,6 +1,7 @@
 # Vayl
 
 [![PyPI](https://img.shields.io/pypi/v/vayl-mcp?color=346ddb&label=pypi)](https://pypi.org/project/vayl-mcp/)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vayl-dev/vayl/badge)](https://scorecard.dev/viewer/?uri=github.com/vayl-dev/vayl)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14t-blue)
 ![Tests](https://img.shields.io/badge/tests-475%20passing-brightgreen)
