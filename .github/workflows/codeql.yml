@@ -1,0 +1,37 @@
+# CodeQL static analysis (SAST) for Python — results appear in the Security tab
+# and feed the OpenSSF Scorecard SAST check.
+name: CodeQL
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "27 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (Python)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # upload CodeQL results
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
+        with:
+          category: "/language:python"
