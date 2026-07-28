@@ -49,6 +49,7 @@ pooled = ["urllib3>=2"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
+vayl-demo = "vayl.demo:main"                          # zero-setup 30s demo of reconciling memory
 vayl-mcp = "vayl.api.mcp_server:main"
 vayl-server = "vayl.api.server:main"
 vayl-license = "vayl.licensing.mint_license:main"   # vendor-side: keygen + mint customer licenses
