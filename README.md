@@ -35,6 +35,7 @@ New to it? Jump to [Quickstart](#quickstart-2-min) · [Why Vayl?](#why-vayl) · 
 
 ```bash
 pip install vayl-mcp          # from PyPI
+vayl-demo                     # 30s, no keys — see reconciling memory in action
 ```
 
 Add to your MCP client (Claude Desktop / Cursor) config:
