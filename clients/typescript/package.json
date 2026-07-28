@@ -1,0 +1,38 @@
+{
+  "name": "vayl",
+  "version": "0.1.0",
+  "description": "Reconciling memory for AI agents — TypeScript client for the Vayl MCP server.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": ["mcp", "memory", "agents", "llm", "vayl", "model-context-protocol"],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vayl-dev/vayl.git",
+    "directory": "clients/typescript"
+  },
+  "homepage": "https://vayl.gitbook.io/vayl-docs"
+}
