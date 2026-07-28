@@ -409,6 +409,10 @@ A malformed or missing schema **raises** rather than falling back to empty: fail
 believing critical slots are canonicalised when they are not. Empty by default — declare nothing and
 behaviour is unchanged. Full example: [`examples/clinical-slots.json`](examples/clinical-slots.json).
 
+**Built-in presets** — skip the JSON and use a bundled schema for a common domain:
+`VAYL_SLOT_SCHEMA=preset:clinical` (also `preset:finance`, `preset:support`). Pair the clinical/finance
+presets with `VAYL_CRITICAL_CATEGORIES=critical` so their critical slots are always surfaced.
+
 ## Human approval for high-stakes writes
 
 Reconciliation is driven by an LLM reading conversational text. For most slots a wrong write is

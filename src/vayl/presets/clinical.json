@@ -1,0 +1,42 @@
+{
+  "_note": "Built-in clinical preset. Enable with VAYL_SLOT_SCHEMA=preset:clinical and VAYL_CRITICAL_CATEGORIES=critical so allergies/meds are always injected. Meds and code status are confirm-gated (a change needs human approval); allergies are NOT gated because surfacing a new allergy is safety-positive and must be immediate.",
+  "slots": [
+    {
+      "name": "allergy",
+      "description": "a substance the patient reacts to, and the reaction (a patient may have several — this is a list)",
+      "category": "critical",
+      "verbatim": true,
+      "multi": true,
+      "confirm": false,
+      "aliases": ["allergies", "patient_allergy", "drug_allergy", "known_allergies"]
+    },
+    {
+      "name": "active_medication",
+      "description": "a medication the patient is currently taking, with dose and frequency",
+      "category": "critical",
+      "verbatim": true,
+      "multi": true,
+      "confirm": true,
+      "aliases": ["current_medication", "medication", "prescribed_medication", "meds"]
+    },
+    {
+      "name": "code_status",
+      "description": "resuscitation preference — full code, DNR, DNI",
+      "category": "critical",
+      "confirm": true,
+      "aliases": ["resuscitation_status", "dnr_status"]
+    },
+    {
+      "name": "primary_diagnosis",
+      "description": "the principal condition currently being treated",
+      "category": "critical",
+      "verbatim": true,
+      "aliases": ["diagnosis", "working_diagnosis"]
+    },
+    {
+      "name": "care_team_lead",
+      "description": "the clinician responsible for this patient's care",
+      "aliases": ["attending", "attending_physician", "responsible_clinician"]
+    }
+  ]
+}

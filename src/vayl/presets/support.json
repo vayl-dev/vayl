@@ -1,0 +1,33 @@
+{
+  "_note": "Built-in customer-support preset. Enable with VAYL_SLOT_SCHEMA=preset:support. Lower-stakes than clinical/finance, so nothing is confirm-gated — support facts change often and should apply immediately. Issues, preferences, and entitlements are lists.",
+  "slots": [
+    {
+      "name": "plan",
+      "description": "the customer's current subscription plan",
+      "aliases": ["subscription", "tier", "pricing_plan"]
+    },
+    {
+      "name": "account_status",
+      "description": "the customer's account status (active, suspended, churned)",
+      "aliases": ["status", "account_state"]
+    },
+    {
+      "name": "open_issue",
+      "description": "an unresolved issue or support ticket for the customer (a customer may have several)",
+      "multi": true,
+      "aliases": ["issue", "ticket", "open_ticket"]
+    },
+    {
+      "name": "preference",
+      "description": "a stated customer preference, e.g. preferred contact channel",
+      "multi": true,
+      "aliases": ["preferences", "contact_preference"]
+    },
+    {
+      "name": "entitlement",
+      "description": "a feature or entitlement the customer has",
+      "multi": true,
+      "aliases": ["feature", "entitlements", "feature_flag"]
+    }
+  ]
+}

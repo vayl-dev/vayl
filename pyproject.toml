@@ -61,6 +61,9 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"vayl.presets" = ["*.json"]      # bundle the built-in slot-schema presets in the wheel
+
 [tool.pytest.ini_options]
 # Unit tests are offline and deterministic (no LLM/network). The LLM evals live
 # in benchmarks/ and are run manually — they are not part of the test suite.

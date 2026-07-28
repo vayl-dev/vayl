@@ -175,8 +175,35 @@ def from_dict(obj):
     return SlotSchema(slots)
 
 
+_PRESET_PREFIX = "preset:"
+
+
+def list_presets():
+    """Names of the built-in slot presets bundled with Vayl (e.g. 'clinical', 'finance', 'support')."""
+    import importlib.resources as res
+    try:
+        return sorted(p.name[:-5] for p in res.files("vayl.presets").iterdir()
+                      if p.name.endswith(".json"))
+    except (ModuleNotFoundError, FileNotFoundError):
+        return []
+
+
+def _load_preset(name):
+    """Load a bundled preset by name. Only enumerated presets load — no path traversal."""
+    import importlib.resources as res
+    name = name.strip().lower()
+    if name not in list_presets():
+        avail = ", ".join(list_presets()) or "(none)"
+        raise ValueError(f"unknown slot preset '{name}'. Available presets: {avail}")
+    text = res.files("vayl.presets").joinpath(name + ".json").read_text(encoding="utf-8")
+    return from_dict(json.loads(text))
+
+
 def load(path=None):
     """Load the schema from `path` or VAYL_SLOT_SCHEMA. Returns an empty schema if unset.
+
+    `path` is either a file path, or `preset:<name>` to load one of the built-in presets bundled
+    with Vayl (`preset:clinical`, `preset:finance`, `preset:support`; see list_presets()).
 
     A malformed schema raises rather than falling back to empty: silently ignoring it would mean
     a clinical deployment believing allergies are canonicalised and always-injected when they are
@@ -185,5 +212,7 @@ def load(path=None):
     path = path or os.environ.get("VAYL_SLOT_SCHEMA", "")
     if not path:
         return SlotSchema()
+    if path.startswith(_PRESET_PREFIX):
+        return _load_preset(path[len(_PRESET_PREFIX):])
     with open(os.path.expanduser(path), encoding="utf-8") as f:
         return from_dict(json.load(f))
