@@ -136,7 +136,8 @@ def main():
     try:
         run(live=live)
     except KeyboardInterrupt:
-        pass
+        # Ctrl-C during the demo is a normal exit, not an error — leave quietly.
+        sys.exit(130)
 
 
 if __name__ == "__main__":
