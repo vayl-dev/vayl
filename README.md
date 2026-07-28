@@ -64,6 +64,21 @@ self-hosted or EU-region deployment if data residency matters.
 
 Restart the client — your agent now has the tools below. `VAYL_DB` is where memory persists.
 
+**Calling it from Python** — a small sync client wraps the MCP boilerplate, so you write methods, not `tools/call` JSON:
+
+```python
+from vayl import Vayl
+
+with Vayl(user_id="proj_7") as m:        # local: spawns vayl-mcp over stdio
+    m.remember("We moved off Redux to Zustand")
+    print(m.recall("what do we use for state?"))   # -> "Zustand"
+
+# a shared team server:
+# with Vayl(url="https://memory.acme.com/mcp", api_key="vayl_sk_…") as m: ...
+```
+
+Any tool is callable as a method (`m.check_before_act(...)`, `m.history(...)`); a default `user_id`/`agent_id`/`run_id` is sent on every call.
+
 ---
 
 ## What your agent gets
