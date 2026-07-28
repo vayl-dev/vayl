@@ -544,6 +544,22 @@ def _qa(context, question):
 
 _EXTRACT_JSON_RETRIES = int(os.environ.get("VAYL_EXTRACT_RETRIES", "2"))
 
+# ── PRE-LLM DEDUP ──
+# The write path spends one LLM call per message even when the message is a verbatim restatement of
+# facts already current. When the exact utterance previously produced fact(s) that are ALL still the
+# active value in their slot, re-extraction is guaranteed to reconcile to DEDUP (see the RESTATEMENT
+# check in `_apply`), so the call can be skipped. This ONLY fires on an exact match after light
+# normalization — never fuzzy similarity — so it can't skip a subtly different value ("5 mg" vs
+# "7 mg") that ought to supersede. On by default; VAYL_DEDUP_PREFILTER=off restores always-extract.
+_DEDUP_PREFILTER = os.environ.get("VAYL_DEDUP_PREFILTER", "1").lower() not in ("0", "off", "false", "no")
+_WS_RE = re.compile(r"\s+")
+
+
+def _norm_utterance(text):
+    """Case-fold and collapse whitespace for the pre-LLM dedup match. Deliberately conservative:
+    exact-after-normalization only, so a match means a literal restatement, nothing looser."""
+    return _WS_RE.sub(" ", (text or "").strip().lower())
+
 
 def llm_extract_classify(text, active):
     facts = [{"id": s.id, "subject": s.subject, "value": s.value, "scope": s.scope} for s in active]
@@ -781,6 +797,17 @@ class LLMMemory:
                                 functional=_norm_rel(rel) not in MULTI_VALUED_RELS)
 
     def add(self, text, source=""):
+        # ── PRE-LLM DEDUP ──
+        # Skip extraction when this exact utterance already produced fact(s) that are ALL still
+        # active: re-extraction would only DEDUP them (the RESTATEMENT branch in _apply), so the
+        # outcome is identical and one LLM call is saved. If ANY fact from that utterance is no
+        # longer active — the slot changed since — we fall through and extract, so a restatement
+        # that should now supersede is never skipped. No staleness regression by construction.
+        if _DEDUP_PREFILTER and text and text.strip():
+            key = _norm_utterance(text)
+            group = [s for s in self.statements if _norm_utterance(s.raw) == key]
+            if group and all(s.status is Status.ACTIVE for s in group):
+                return [(Action.DEDUP, s.subject, s.value) for s in group]
         # A message may carry several facts; extract all, reconcile each in order.
         # `source` is stamped on every fact created — belief provenance. Show the extractor only the
         # top-k RELEVANT active facts (all of them when the space is small) so write cost stays
