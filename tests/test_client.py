@@ -49,6 +49,7 @@ def test_stdio_roundtrip(tmp_path):
     # to avoid key setup in a throwaway test db. Any failure -> skip, so CI can't break on it.
     env = dict(os.environ, VAYL_DB=str(tmp_path / "c.db"),
                VAYL_ENCRYPT="off", VAYL_SIGN="off", VAYL_CLIENT_CONNECT_TIMEOUT="20")
+    out = None
     try:
         with Vayl(env=env, user_id="tester") as m:
             out = m.list_memories()
