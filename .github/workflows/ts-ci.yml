@@ -1,0 +1,28 @@
+# TypeScript SDK — typecheck + build. Runs only when the TS client changes, so it doesn't gate
+# Python PRs. Not a required check.
+name: TS SDK CI
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["clients/typescript/**", ".github/workflows/ts-ci.yml"]
+  pull_request:
+    paths: ["clients/typescript/**", ".github/workflows/ts-ci.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/typescript
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run build

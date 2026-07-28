@@ -79,6 +79,8 @@ with Vayl(user_id="proj_7") as m:        # local: spawns vayl-mcp over stdio
 
 Any tool is callable as a method (`m.check_before_act(...)`, `m.history(...)`); a default `user_id`/`agent_id`/`run_id` is sent on every call.
 
+**TypeScript** — the same client for TS/JS agents lives in [`clients/typescript/`](clients/typescript/): `const m = await Vayl.connect({ userId: "proj_7" }); await m.remember(...); await m.recall(...)`.
+
 ---
 
 ## What your agent gets
