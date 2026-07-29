@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "mcp>=1.2",
+    "mcp>=1.2,<2",   # 2.0 removed the bundled mcp.server.fastmcp; migrate deliberately before lifting the cap
     "cryptography>=44",   # at-rest encryption + Argon2id VAYL_KEY KDF (Argon2id added in 44)
 ]
 
