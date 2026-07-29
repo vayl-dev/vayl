@@ -23,7 +23,7 @@
 - ✅ **Reconciles, doesn't pile up** — a new value *supersedes* the old; a *same-slot invariant* means one thing never has two live values, so "what's true now" is always unambiguous.
 - 🗑️ **Removal is first-class** — "we dropped X" actually *retracts* X. Graph memory stores can't model this; additive stores never do.
 - 🕰️ **History is kept and auditable** — ask what's true *now* or what was true *before*; every change is on a tamper-evident, signed audit chain.
-- 🔌 **Local, cheap, pluggable** — two core dependencies, SQLite by default (no server to run), ~2 LLM calls per fact, and it speaks MCP so any agent client plugs in.
+- 🔌 **Local, cheap, pluggable** — SQLite by default (no server to run), ~2 LLM calls per fact, one-command install into Claude / Cursor / Claude Code, and it speaks MCP so any agent client plugs in.
 
 📚 **Full documentation:** [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) — guides, MCP tool reference, tutorials, and deployment.
 
@@ -455,7 +455,7 @@ subject can delete the record that something happened. Untagged facts default to
 
 ## Contributing
 
-Contributions are welcome — bug reports, docs, tests, new LLM providers, and reconciliation edge cases especially. Vayl is intentionally small (two core dependencies) and its unit tests are fully offline, so the dev loop is fast and needs no API key.
+Contributions are welcome — bug reports, docs, tests, new LLM providers, and reconciliation edge cases especially. Vayl keeps a lean core and its unit tests are fully offline, so the dev loop is fast and needs no API key.
 
 **Setup**
 
@@ -508,7 +508,7 @@ benchmarks/   LLM evals + load/integrity harnesses — run manually
 
 **Guidelines**
 
-- Keep the **core at two dependencies** (`mcp`, `cryptography`); anything heavier goes behind an optional extra.
+- Keep the **core dependencies lean** (`fastmcp` for the MCP surface, `cryptography`); anything heavier goes behind an optional extra.
 - Unit tests stay **offline and deterministic** — LLM-dependent checks belong in `benchmarks/`.
 - New behaviour needs a test, and `ruff check .` must pass.
 - The audit hash-chain is a security guarantee: changes under `security/audit.py` need a concurrency test (see `tests/test_accountability.py`).

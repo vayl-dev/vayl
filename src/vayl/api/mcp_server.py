@@ -21,7 +21,7 @@ import secrets
 import sys
 import time
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from vayl.auth import auth
@@ -80,20 +80,21 @@ def _transport_security():
         VAYL_ALLOWED_HOSTS    CSV of Host values the server answers to (e.g. memory.acme.com,127.0.0.1:8080)
         VAYL_ALLOWED_ORIGINS  CSV of allowed Origin headers (browser clients); optional
     A deployment bound to 0.0.0.0 behind a proxy MUST set VAYL_ALLOWED_HOSTS to its public host —
-    otherwise legitimate traffic is rejected (a safe, visible failure), not silently unprotected."""
-    from mcp.server.transport_security import TransportSecuritySettings
+    otherwise legitimate traffic is rejected (a safe, visible failure), not silently unprotected.
+
+    Returns kwargs for FastMCP's `http_app()`: with the standalone framework, transport security and
+    statelessness live on the HTTP app, not the constructor (stdio has no HTTP, so it doesn't apply)."""
     default_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
     hosts = [h.strip() for h in os.environ.get("VAYL_ALLOWED_HOSTS", "").split(",") if h.strip()]
     origins = [o.strip() for o in os.environ.get("VAYL_ALLOWED_ORIGINS", "").split(",") if o.strip()]
-    return TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=hosts or default_hosts,
-        allowed_origins=origins or ["http://localhost:*", "http://127.0.0.1:*"])
+    return {
+        "host_origin_protection": True,   # DNS-rebinding protection, always on
+        "allowed_hosts": hosts or default_hosts,
+        "allowed_origins": origins or ["http://localhost:*", "http://127.0.0.1:*"],
+    }
 
 
-# stateless_http: each HTTP request is handled independently — the right model for per-request API-key
-# auth (the middleware binds a principal per request; no long-lived session to carry stale identity).
-mcp = FastMCP("vayl", stateless_http=True, transport_security=_transport_security())
+mcp = FastMCP("vayl")
 _db_path = os.path.expanduser(os.environ.get("VAYL_DB", "vayl.db"))
 _store = Store(_db_path, graph=_maybe_graph())
 _metrics = Metrics(_store.db, _store.crypter)
@@ -947,7 +948,8 @@ def health() -> str:
 
 
 def main():
-    mcp.run()
+    # show_banner=False: on stdio the banner would print to the console; keep the transport clean.
+    mcp.run(show_banner=False)
 
 
 if __name__ == "__main__":

@@ -252,7 +252,9 @@ def main():
     elif cfg:
         print("  ⚠ OIDC configured but the license doesn't grant 'sso' — SSO disabled (API keys still work).")
 
-    app = build_app(mcp_server.mcp.streamable_http_app(), mcp_server._auth, mcp_server._store, sso_verifier)
+    mcp_app = mcp_server.mcp.http_app(transport="http", stateless_http=True,
+                                      **mcp_server._transport_security())
+    app = build_app(mcp_app, mcp_server._auth, mcp_server._store, sso_verifier)
 
     print(f"Vayl server → http://{host}:{port}/mcp   (auth: REQUIRED · Bearer vayl_sk_… or OIDC JWT)")
     if mcp_server._auth.count_active() == 0:
