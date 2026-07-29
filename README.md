@@ -4,7 +4,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vayl-dev/vayl/badge)](https://scorecard.dev/viewer/?uri=github.com/vayl-dev/vayl)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14t-blue)
-![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-495%20passing-brightgreen)
 ![Protocol](https://img.shields.io/badge/protocol-MCP-black)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
@@ -63,6 +63,15 @@ suite. Any OpenAI-compatible endpoint works — point `OPENAI_BASE_URL` at your 
 self-hosted or EU-region deployment if data residency matters.
 
 Restart the client — your agent now has the tools below. `VAYL_DB` is where memory persists.
+
+**Or let the CLI write the config for you.** Vayl is a [FastMCP](https://gofastmcp.com) server, so `fastmcp install` wires it into your client in one command:
+
+```bash
+fastmcp install claude-desktop src/vayl/api/mcp_server.py:mcp \
+  --with vayl-mcp --env OPENAI_API_KEY=sk-… --env VAYL_DB=/absolute/path/vayl.db
+```
+
+Targets: `claude-desktop` · `claude-code` · `cursor` · `gemini-cli` · `mcp-json` (prints/copies the config JSON for any client). Run it from a checkout of this repo, or point the spec at the installed module file.
 
 **Calling it from Python** — a small sync client wraps the MCP boilerplate, so you write methods, not `tools/call` JSON:
 

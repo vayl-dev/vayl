@@ -3,6 +3,20 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-07-29
+
+Framework migration: Vayl's MCP server now runs on the maintained standalone **FastMCP** framework
+instead of the bundled `mcp.server.fastmcp` (which MCP SDK 2.0 removed).
+
+### Changed
+- **Migrated to standalone FastMCP** (`fastmcp>=3,<4`). Unblocks the previous `mcp<2` cap and enables
+  **one-command client install** — `fastmcp install {claude-desktop, claude-code, cursor, gemini-cli,
+  mcp-json}` — plus FastMCP's auth/middleware/provider system.
+- **Scope-aware SDKs.** FastMCP validates tool arguments strictly and rejects unknown ones. The
+  Python and TypeScript clients now learn each tool's parameters on connect and send
+  `user_id`/`agent_id`/`run_id` only to tools that accept them — so a client-wide default scope no
+  longer breaks scope-less tools (`health`, `stats`, `verify_audit`, `export_public_key`, …).
+
 ## [0.2.0] — 2026-07-28
 
 Onboarding and write-path release: try Vayl in 30 seconds, call it from Python or TypeScript, and
@@ -35,5 +49,6 @@ old, removals retract, ambiguous input is flagged, and history stays queryable �
 (`vayl-mcp`) or an authenticated team server (`vayl-server`). SQLite by default, optional Postgres;
 encryption at rest, an Ed25519-signed tamper-evident audit chain, RBAC, and GDPR tools.
 
+[0.3.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.3.0
 [0.2.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.1.0
