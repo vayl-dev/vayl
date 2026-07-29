@@ -67,6 +67,7 @@ export class Vayl {
   private transport: StdioClientTransport | StreamableHTTPClientTransport | null = null;
   private scope: ToolArgs;
   private connected = false;
+  private toolAccepts = new Map<string, Set<string>>();
 
   constructor(private opts: VaylOptions = {}) {
     this.scope = clean({ user_id: opts.userId, agent_id: opts.agentId, run_id: opts.runId });
@@ -96,6 +97,26 @@ export class Vayl {
     }
     await this.client.connect(this.transport);
     this.connected = true;
+    // Learn each tool's parameters so `call()` only sends scope keys a tool accepts — FastMCP
+    // validates arguments strictly and rejects unknown ones (e.g. a default userId to health()).
+    try {
+      const { tools } = await this.client.listTools();
+      for (const t of tools) {
+        const props = ((t.inputSchema as { properties?: Record<string, unknown> })?.properties) ?? {};
+        this.toolAccepts.set(t.name, new Set(Object.keys(props)));
+      }
+    } catch {
+      // best-effort: fall back to sending the full scope
+    }
+  }
+
+  private scopeFor(tool: string): ToolArgs {
+    const accepts = this.toolAccepts.get(tool);
+    const out: ToolArgs = {};
+    for (const [k, v] of Object.entries(this.scope)) {
+      if (!accepts || accepts.has(k)) out[k] = v;
+    }
+    return out;
   }
 
   /** Call any tool by name; returns its text result. Prefer the named methods where they exist. */
@@ -103,7 +124,7 @@ export class Vayl {
     if (!this.connected) await this.connect();
     const res = await this.client.callTool({
       name: tool,
-      arguments: { ...this.scope, ...clean(args) },
+      arguments: { ...this.scopeFor(tool), ...clean(args) },
     });
     // callTool's result content is loosely typed by the SDK; narrow to the text blocks we return.
     const content = (res.content ?? []) as unknown as Array<{ type: string; text?: string }>;

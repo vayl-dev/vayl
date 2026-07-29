@@ -33,9 +33,14 @@ class VaylError(RuntimeError):
     """A Vayl tool returned an error (e.g. access denied, or a failed operation)."""
 
 
-def _merge_scope(scope, args):
-    """Client-default scope + per-call args; per-call wins, empty/None values are dropped."""
-    out = {k: v for k, v in scope.items() if v}
+def _merge_scope(scope, args, accepts=None):
+    """Client-default scope + per-call args; per-call wins, empty/None values are dropped.
+
+    When `accepts` (the set of parameter names a tool declares) is given, scope keys the tool does
+    not accept are dropped — so a default `user_id` is never sent to a scope-less tool like
+    `health()`. FastMCP validates arguments strictly and rejects unknown ones, so this keeps a
+    client-wide default scope from breaking calls to tools that don't take it."""
+    out = {k: v for k, v in scope.items() if v and (accepts is None or k in accepts)}
     out.update({k: v for k, v in args.items() if v is not None})
     return out
 
@@ -60,6 +65,7 @@ class Vayl:
         self._scope = {"user_id": user_id, "agent_id": agent_id, "run_id": run_id}
 
         self._q = None                                   # asyncio.Queue, created on the loop
+        self._tool_accepts = {}                           # tool name -> set of accepted param names
         self._connected = concurrent.futures.Future()    # resolves once the session is live
         self._closed = False
         self._loop = _new_loop()
@@ -98,6 +104,13 @@ class Vayl:
                 self._connected.set_exception(e)
 
     async def _loop_serve(self, session):
+        # Learn each tool's parameters so `call()` only sends scope keys a tool actually accepts.
+        try:
+            listed = await session.list_tools()
+            self._tool_accepts = {t.name: set((t.inputSchema or {}).get("properties", {}) or {})
+                                  for t in listed.tools}
+        except Exception:
+            self._tool_accepts = {}   # best-effort: fall back to sending the full scope
         if not self._connected.done():
             self._connected.set_result(True)
         while True:
@@ -117,7 +130,8 @@ class Vayl:
         if self._closed:
             raise VaylError("client is closed")
         fut = concurrent.futures.Future()
-        self._loop.call_soon_threadsafe(self._q.put_nowait, (tool, _merge_scope(self._scope, args), fut))
+        scoped = _merge_scope(self._scope, args, self._tool_accepts.get(tool))
+        self._loop.call_soon_threadsafe(self._q.put_nowait, (tool, scoped, fut))
         return fut.result(timeout=_CALL_TIMEOUT)
 
     def remember(self, text, **kw):

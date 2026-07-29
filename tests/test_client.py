@@ -25,6 +25,14 @@ def test_merge_scope_drops_empty_and_lets_call_override():
     assert _merge_scope(scope, {"text": "x"}) == {"user_id": "u1", "text": "x"}
 
 
+def test_merge_scope_only_sends_accepted_keys():
+    # FastMCP validates args strictly: a default scope must not be sent to a tool that lacks it.
+    scope = {"user_id": "u1", "agent_id": "a1", "run_id": ""}
+    assert _merge_scope(scope, {}, accepts={"user_id", "question"}) == {"user_id": "u1"}  # agent_id dropped
+    assert _merge_scope(scope, {}, accepts=set()) == {}                                    # scope-less tool
+    assert _merge_scope(scope, {}, accepts=None) == {"user_id": "u1", "agent_id": "a1"}    # unknown → all
+
+
 def test_text_joins_text_parts_and_ignores_others():
     assert _text(_result(["a", "b"])) == "a\nb"
     mixed = SimpleNamespace(content=[_content("keep"), SimpleNamespace(type="image", text=None)], isError=False)
