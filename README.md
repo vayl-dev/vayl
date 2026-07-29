@@ -4,7 +4,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vayl-dev/vayl/badge)](https://scorecard.dev/viewer/?uri=github.com/vayl-dev/vayl)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14t-blue)
-![Tests](https://img.shields.io/badge/tests-475%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-494%20passing-brightgreen)
 ![Protocol](https://img.shields.io/badge/protocol-MCP-black)
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
