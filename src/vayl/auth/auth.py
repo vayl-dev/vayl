@@ -148,7 +148,7 @@ class Auth:
         try:
             self.db.execute("ALTER TABLE principals ADD COLUMN tenant TEXT")
         except Exception:
-            pass
+            pass                      # already present
         self.db.commit()
 
     def _enc_name(self, s):
