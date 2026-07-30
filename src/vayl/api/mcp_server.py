@@ -33,7 +33,7 @@ from vayl.licensing.receipts import Receipts
 from vayl.memory.decisions import Decisions
 from vayl.security import crypto
 from vayl.security.audit import Audit
-from vayl.storage.store import Store
+from vayl.storage.store import Store, bind_tenant, reset_tenant
 from vayl.telemetry.metrics import Metrics
 
 # ── tool safety annotations ───────────────────────────────────────────────────
@@ -118,14 +118,19 @@ _AUTH_REQUIRED = os.environ.get("VAYL_AUTH_REQUIRED", "").lower() in ("1", "true
 
 
 def set_principal(principal):
-    """Bind the authenticated caller for this request (used by the remote transport in M2).
-    Returns a token to pass to reset_principal() when the request ends."""
-    return _principal_ctx.set(principal)
+    """Bind the authenticated caller for this request (used by the remote transport in M2), AND its
+    tenant, so every store query in the request is hard-partitioned to the caller's org. Returns an
+    opaque token to pass to reset_principal() when the request ends."""
+    ttok = bind_tenant(getattr(principal, "tenant", None))
+    ptok = _principal_ctx.set(principal)
+    return (ptok, ttok)
 
 
 def reset_principal(token):
-    """Unbind the request's principal (paired with set_principal in the transport middleware)."""
-    _principal_ctx.reset(token)
+    """Unbind the request's principal and tenant (paired with set_principal in the transport middleware)."""
+    ptok, ttok = token
+    _principal_ctx.reset(ptok)
+    reset_tenant(ttok)
 
 
 def _current_principal():
@@ -725,7 +730,7 @@ def reject_change(memory_id: int, user_id: str = "default", agent_id: str = "", 
 
 @mcp.tool(annotations=_write("Create a principal (user/agent) + API key", open_world=False))
 def create_principal(name: str, role: str = "member", kind: str = "agent",
-                     scopes: str = "") -> str:
+                     scopes: str = "", tenant: str = "default") -> str:
     """Admin only. Create a principal (a human user, agent, or service) and issue its API key. Roles:
     admin, member, agent, viewer, auditor. The key is shown ONCE — store it securely; it can't be
     recovered (reissue by creating a new principal).
@@ -734,7 +739,11 @@ def create_principal(name: str, role: str = "member", kind: str = "agent",
     "cust_5521,cust_7788". Leave empty for unrestricted (the default, and correct for a
     single-tenant deployment). Set it for any multi-tenant deployment: without it, a valid
     key can read any space by passing that space's user_id. An admin role is unrestricted
-    regardless, since org control implies reaching every space."""
+    regardless, since org control implies reaching every space.
+
+    `tenant` is the org partition this key belongs to (default "default"). It is a HARD boundary:
+    every store query is filtered by it, so a key for one tenant cannot reach another tenant's
+    memory even under the same user_id. Set it per org in a shared multi-tenant deployment."""
     def go():
         try:
             role_enum = auth.Role(role.lower())
@@ -744,12 +753,12 @@ def create_principal(name: str, role: str = "member", kind: str = "agent",
             return (f"Seat limit reached: {_license.seat_cap} active principal(s) allowed on the "
                     f"{_license.edition} edition. Revoke an unused principal, or install a license "
                     f"with more seats (see mint_license.py / VAYL_LICENSE).")
-        p, key = _auth.create(name, roles=role_enum, kind=kind, scopes=scopes or None)
+        p, key = _auth.create(name, roles=role_enum, kind=kind, scopes=scopes or None, tenant=tenant)
         _audit.record("create_principal", getattr(_current_principal(), "id", "") or "", "", "",
-                      f"{p.id} '{name}' role={role_enum.value} "
+                      f"{p.id} '{name}' role={role_enum.value} tenant={p.tenant} "
                       f"scopes={','.join(p.scopes) or '*'}")
-        return (f"Created principal {p.id} '{name}' (role: {role_enum.value}, kind: {kind}).\n"
-                f"  API key (shown once — save it now):\n  {key}")
+        return (f"Created principal {p.id} '{name}' (role: {role_enum.value}, kind: {kind}, "
+                f"tenant: {p.tenant}).\n  API key (shown once — save it now):\n  {key}")
     return _guard("create_principal", go, cap=C.ADMIN)
 
 

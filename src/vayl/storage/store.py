@@ -15,6 +15,7 @@ History stays on disk and is read lazily via get_row() / history_rows() / cold_t
 """
 import array
 import base64
+import contextvars
 import itertools
 import json
 import os
@@ -26,6 +27,21 @@ from vayl.security import crypto
 from vayl.storage.db import Database
 
 _HOT = ("ACTIVE", "FLAGGED_CONFLICT")   # statuses kept in the in-memory working set
+
+# The active tenant for the current request. The remote server binds it from the caller's principal
+# (see api.mcp_server.set_principal); unset (stdio / single-tenant) falls back to the Store's default.
+# Every query filters by Store.tenant, so binding this hard-partitions one org's memory from another's.
+_TENANT = contextvars.ContextVar("vayl_tenant", default=None)
+
+
+def bind_tenant(tenant):
+    """Bind the active tenant for the current request context. Returns a token for reset_tenant()."""
+    return _TENANT.set(tenant or None)
+
+
+def reset_tenant(token):
+    """Unbind the request's tenant (paired with bind_tenant in the transport middleware)."""
+    _TENANT.reset(token)
 _EMBED_RAW_CHARS = 300                  # how much of the source sentence enters the vector
 
 
@@ -54,10 +70,7 @@ _COLS_LIGHT = _COLS.replace("embedding", "(embedding IS NOT NULL)")
 class Store:
     def __init__(self, path="vayl.db", graph=None, tenant_id="default"):
         self.graph = graph          # optional shared Neo4jGraph (single-tenant in the MVP)
-        self.tenant = tenant_id     # the ISOLATION SEAM: every row is stamped with it and every query
-        #                             filters by it, so two Store(tenant_id=…) on one DB never see each
-        #                             other. Constant per deployment now; lets a hosted edition partition
-        #                             many orgs in one DB later without a migration.
+        self._default_tenant = tenant_id   # tenant used when no request has bound one (stdio / single-tenant)
         # At-rest encryption (ON by default): content columns (slot/subject/value/raw/metadata/embedding)
         # become ciphertext; `subject_hmac` is a blind index so subject-equality queries still work.
         # Structural columns (ids/status/confidence/scope) stay plaintext.
@@ -96,6 +109,14 @@ class Store:
                         "tenant_id TEXT DEFAULT 'default', PRIMARY KEY(user_id, agent_id, run_id))")
         self.db.add_column_if_missing("space_config", "tenant_id TEXT DEFAULT 'default'")
         self.db.commit()
+
+    @property
+    def tenant(self):
+        """The ISOLATION SEAM: every row is stamped with it and every query filters by it, so two
+        tenants on one DB never see each other's memory — even under the SAME user_id. The remote
+        server binds it per request from the caller's principal (bind_tenant); unbound requests
+        (stdio / single-tenant) use the deployment default."""
+        return _TENANT.get() or self._default_tenant
 
     @staticmethod
     def _ns(user_id, agent_id="", run_id=""):

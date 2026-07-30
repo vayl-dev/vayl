@@ -58,6 +58,9 @@ class Principal:
     roles: list = field(default_factory=list)   # list[Role]
     kind: str = "agent"                          # human | agent | service
     scopes: list = field(default_factory=list)  # user_ids this principal may touch; [] = all
+    tenant: str = "default"                      # the org this key belongs to — a HARD partition: the
+    #                                              store filters every query by it, so tenant A never
+    #                                              sees tenant B's memory even under the same user_id
 
     def can(self, capability):
         """True if any of this principal's roles grants the capability."""
@@ -140,6 +143,12 @@ class Auth:
             self.db.execute("ALTER TABLE principals ADD COLUMN scopes TEXT")
         except Exception:
             pass                      # already present
+        # tenant: added later than scopes. Existing rows get NULL → treated as the 'default' tenant, so
+        # an upgrade leaves a single-tenant deployment behaving exactly as before.
+        try:
+            self.db.execute("ALTER TABLE principals ADD COLUMN tenant TEXT")
+        except Exception:
+            pass                      # already present
         self.db.commit()
 
     def _enc_name(self, s):
@@ -153,33 +162,39 @@ class Auth:
                 return s   # legacy plaintext row (pre-encryption) — return as stored
         return s
 
-    def create(self, name, roles=Role.MEMBER, kind="agent", scopes=None):
+    def create(self, name, roles=Role.MEMBER, kind="agent", scopes=None, tenant="default"):
         """Create a principal and return (Principal, plaintext_api_key). The key is shown ONCE — only
-        its hash is stored, so it can't be recovered later (reissue by creating a new principal)."""
+        its hash is stored, so it can't be recovered later (reissue by creating a new principal).
+
+        `tenant` is the org partition the key belongs to: every store query filters by it, so a key
+        for tenant A cannot reach tenant B's memory even by passing B's user_id. Leave 'default' for a
+        single-tenant deployment; set it per org for a shared multi-tenant one."""
         roles = _parse_roles(roles) or [Role.MEMBER]
         scopes = _parse_scopes(scopes)
+        tenant = str(tenant or "default").strip() or "default"
         pid = "prin_" + secrets.token_hex(6)
         key = _mint_key()
         self.db.execute(
-            "INSERT INTO principals(id, name, kind, api_key_hash, roles, disabled, created_at, scopes) "
-            "VALUES (?,?,?,?,?,0,?,?)",
+            "INSERT INTO principals(id, name, kind, api_key_hash, roles, disabled, created_at, scopes, tenant) "
+            "VALUES (?,?,?,?,?,0,?,?,?)",
             (pid, self._enc_name(name), kind, _hash_key(key), json.dumps([r.value for r in roles]),
-             time.time(), json.dumps(scopes) if scopes else None))
+             time.time(), json.dumps(scopes) if scopes else None, tenant))
         self.db.commit()
-        return Principal(id=pid, name=name, roles=roles, kind=kind, scopes=scopes), key
+        return Principal(id=pid, name=name, roles=roles, kind=kind, scopes=scopes, tenant=tenant), key
 
     def verify(self, api_key):
         """Resolve an API key to a Principal, or None if unknown/disabled. The trust anchor for a request."""
         if not api_key or not api_key.startswith(KEY_PREFIX):
             return None
         row = self.db.execute(
-            "SELECT id, name, kind, roles, disabled, scopes FROM principals WHERE api_key_hash=?",
+            "SELECT id, name, kind, roles, disabled, scopes, tenant FROM principals WHERE api_key_hash=?",
             (_hash_key(api_key),)).fetchone()
         if not row or row[4]:            # unknown or disabled
             return None
         return Principal(id=row[0], name=self._dec_name(row[1]),
                          roles=_parse_roles(json.loads(row[3] or "[]")), kind=row[2],
-                         scopes=_parse_scopes(json.loads(row[5]) if row[5] else None))
+                         scopes=_parse_scopes(json.loads(row[5]) if row[5] else None),
+                         tenant=str(row[6] or "default"))
 
     def revoke(self, principal_id):
         """Disable a principal (its key stops working immediately). Returns True if one was disabled."""
