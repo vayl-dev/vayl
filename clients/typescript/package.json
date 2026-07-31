@@ -1,7 +1,7 @@
 {
   "name": "vayl",
   "version": "0.1.0",
-  "description": "Reconciling memory for AI agents — TypeScript client for the Vayl MCP server.",
+  "description": "The reconciling memory layer for AI agents — TypeScript client for the Vayl MCP server.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
