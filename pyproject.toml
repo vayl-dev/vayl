@@ -46,8 +46,18 @@ postgres = ["psycopg[binary]>=3.1"]
 # a fresh TCP+TLS handshake per call (~50-200ms/request). Optional: without it, urllib is used and
 # only the pooling is lost, so the core stays at two dependencies.
 pooled = ["urllib3>=2"]
-# Dev tooling: offline unit tests + lint (what CI runs).
-dev = ["pytest>=8", "ruff>=0.6"]
+# Framework adapters: expose Vayl as reconciling memory tools for popular Python agent frameworks
+# (see vayl.integrations.*). Each is optional and imported lazily.
+#   langgraph: langchain-core builds the tools; langchain (v1) provides the `create_agent` factory the
+#   agent() helper prefers; langgraph is the pre-v1 create_react_agent fallback.
+langgraph = ["langchain-core>=0.3", "langchain>=1", "langgraph>=0.2"]
+openai-agents = ["openai-agents>=0.1"]      # @function_tool + Agent/Runner
+crewai = ["crewai>=1"]                        # crewai.tools @tool + Agent (v1 memory API)
+# Dev tooling: offline unit tests + lint (what CI runs). langchain-core and openai-agents are here so
+# those adapters' tools are actually exercised in CI (not just skipped). crewai stays out — it's a heavy
+# install (vector DBs, litellm); its tools are verified locally, and an import-safety test guards the
+# module in CI regardless. Framework agent() helpers are thin passthroughs covered by their missing-dep path.
+dev = ["pytest>=8", "ruff>=0.6", "langchain-core>=0.3", "openai-agents>=0.1"]
 
 [project.scripts]
 vayl-demo = "vayl.demo:main"                          # zero-setup 30s demo of reconciling memory
