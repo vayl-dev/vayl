@@ -1,0 +1,108 @@
+{
+  "_note": "Built-in coding / software-project preset — for agents that live in a codebase (Cursor, Claude Code, coding copilots) and must always know the project's CURRENT stack, not a stale one. Enable with VAYL_SLOT_SCHEMA=preset:coding. Optionally VAYL_CRITICAL_CATEGORIES=guardrail so project conventions are surfaced to the agent before it writes code. Nothing is confirm-gated: dev facts change constantly and should apply immediately. Stack choices are single-valued (a new one supersedes the old — 'we moved off Redux to Zustand' retires Redux); conventions, decisions, and services are lists.",
+  "slots": [
+    {
+      "name": "language",
+      "description": "the project's primary programming language",
+      "aliases": ["programming_language", "lang", "primary_language", "main_language"]
+    },
+    {
+      "name": "framework",
+      "description": "the main application or web framework (e.g. Next.js, Django, Rails, SwiftUI)",
+      "aliases": ["web_framework", "app_framework", "main_framework"]
+    },
+    {
+      "name": "state_library",
+      "description": "the frontend state-management library (e.g. Redux, Zustand, MobX, Jotai, Pinia)",
+      "aliases": ["state_management", "state_manager", "store_library", "state_management_library"]
+    },
+    {
+      "name": "package_manager",
+      "description": "the package manager the project uses (e.g. npm, pnpm, yarn, uv, poetry, cargo)",
+      "aliases": ["pkg_manager", "package_tool", "dependency_manager"]
+    },
+    {
+      "name": "runtime_version",
+      "description": "the exact version of the language runtime (e.g. Node 20.11.0, Python 3.12)",
+      "verbatim": true,
+      "aliases": ["node_version", "python_version", "runtime", "language_version"]
+    },
+    {
+      "name": "database",
+      "description": "the primary database or datastore (e.g. Postgres, MySQL, SQLite, MongoDB)",
+      "aliases": ["db", "datastore", "primary_database", "data_store"]
+    },
+    {
+      "name": "orm",
+      "description": "the ORM or data-access layer (e.g. Prisma, Drizzle, SQLAlchemy, ActiveRecord)",
+      "aliases": ["data_layer", "query_builder", "orm_library"]
+    },
+    {
+      "name": "api_style",
+      "description": "the API paradigm the project exposes or consumes (e.g. REST, GraphQL, tRPC, gRPC)",
+      "aliases": ["api_paradigm", "api", "api_protocol"]
+    },
+    {
+      "name": "styling",
+      "description": "the CSS / styling approach (e.g. Tailwind, CSS Modules, styled-components, vanilla-extract)",
+      "aliases": ["css_approach", "styling_solution", "css_framework", "styling_library"]
+    },
+    {
+      "name": "auth_provider",
+      "description": "the authentication provider or method (e.g. Clerk, Auth0, NextAuth, Firebase Auth)",
+      "aliases": ["auth", "authentication_provider", "auth_service"]
+    },
+    {
+      "name": "deploy_target",
+      "description": "where the app is deployed / hosted (e.g. Vercel, Fly.io, AWS, Cloudflare, Render)",
+      "aliases": ["hosting", "deployment_target", "deploy_platform", "host", "hosting_provider"]
+    },
+    {
+      "name": "ci_provider",
+      "description": "the CI/CD system (e.g. GitHub Actions, CircleCI, GitLab CI)",
+      "aliases": ["ci", "ci_cd", "pipeline", "ci_system"]
+    },
+    {
+      "name": "test_runner",
+      "description": "the test framework / runner (e.g. Vitest, Jest, pytest, Playwright)",
+      "aliases": ["test_framework", "testing_tool", "test_tool", "testing_framework"]
+    },
+    {
+      "name": "build_tool",
+      "description": "the build tool or bundler (e.g. Vite, webpack, esbuild, Turbopack, Bazel)",
+      "aliases": ["bundler", "build_system", "compiler_tool"]
+    },
+    {
+      "name": "default_branch",
+      "description": "the repository's default / trunk branch (e.g. main, master, develop)",
+      "aliases": ["main_branch", "trunk", "base_branch"]
+    },
+    {
+      "name": "repo_url",
+      "description": "the project's git repository URL",
+      "verbatim": true,
+      "aliases": ["repository", "repo", "git_remote", "repository_url"]
+    },
+    {
+      "name": "external_service",
+      "description": "a third-party service or API the project integrates (e.g. Stripe, Sentry, Twilio) — a project uses several",
+      "multi": true,
+      "aliases": ["third_party_service", "integration", "vendor", "external_dependency", "service"]
+    },
+    {
+      "name": "convention",
+      "description": "a coding standard or rule the project follows (e.g. tabs over spaces, PascalCase components, no default exports) — a project has several",
+      "category": "guardrail",
+      "verbatim": true,
+      "multi": true,
+      "aliases": ["coding_convention", "rule", "standard", "style_rule", "coding_standard"]
+    },
+    {
+      "name": "architecture_decision",
+      "description": "a recorded architectural / technical decision and its rationale (an ADR) — a project has several",
+      "verbatim": true,
+      "multi": true,
+      "aliases": ["decision", "adr", "tech_decision", "design_decision"]
+    }
+  ]
+}

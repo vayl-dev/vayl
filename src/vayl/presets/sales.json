@@ -1,0 +1,77 @@
+{
+  "_note": "Built-in sales / CRM preset — for pipeline and deal-assist agents that must reflect a deal's CURRENT state, not a stale snapshot (complements the support preset, which covers post-sale accounts). Enable with VAYL_SLOT_SCHEMA=preset:sales. Nothing is confirm-gated: deal facts move fast and should apply immediately. Deal state is single-valued (a new value supersedes the old — a stage moving to negotiation retires 'qualified'); stakeholders, competitors, objections, next steps, and requirements are lists.",
+  "slots": [
+    {
+      "name": "deal_stage",
+      "description": "the opportunity's current pipeline stage (e.g. prospecting, qualified, proposal, negotiation, closed-won, closed-lost)",
+      "aliases": ["stage", "pipeline_stage", "opportunity_stage", "sales_stage"]
+    },
+    {
+      "name": "deal_value",
+      "description": "the deal's value / annual contract value",
+      "verbatim": true,
+      "aliases": ["contract_value", "acv", "deal_size", "amount", "arr"]
+    },
+    {
+      "name": "close_date",
+      "description": "the expected close date",
+      "verbatim": true,
+      "aliases": ["expected_close", "target_close_date", "close"]
+    },
+    {
+      "name": "economic_buyer",
+      "description": "the person with budget authority who signs off",
+      "aliases": ["decision_maker", "budget_holder", "signer"]
+    },
+    {
+      "name": "primary_contact",
+      "description": "the main point of contact at the account",
+      "aliases": ["main_contact", "poc", "point_of_contact"]
+    },
+    {
+      "name": "account_owner",
+      "description": "the sales rep who owns this account / deal",
+      "aliases": ["sales_rep", "rep", "owner", "ae"]
+    },
+    {
+      "name": "current_vendor",
+      "description": "the incumbent solution the prospect uses today (the one to displace)",
+      "aliases": ["incumbent", "existing_solution", "current_solution"]
+    },
+    {
+      "name": "lead_source",
+      "description": "where the lead / opportunity originated (e.g. inbound, referral, event, outbound)",
+      "aliases": ["source", "channel", "origin"]
+    },
+    {
+      "name": "stakeholder",
+      "description": "a person involved in the deal and their role (e.g. 'Priya — champion') — a deal has several",
+      "multi": true,
+      "aliases": ["contact", "champion", "influencer", "buying_committee_member"]
+    },
+    {
+      "name": "competitor",
+      "description": "a competitor being evaluated in this deal (a deal may face several)",
+      "multi": true,
+      "aliases": ["competition", "alternative", "rival"]
+    },
+    {
+      "name": "objection",
+      "description": "a raised objection, blocker, or risk to the deal (several may be open)",
+      "multi": true,
+      "aliases": ["blocker", "concern", "risk", "deal_risk"]
+    },
+    {
+      "name": "next_step",
+      "description": "an agreed next step or action item to advance the deal (several may be open)",
+      "multi": true,
+      "aliases": ["action_item", "followup", "todo", "next_action"]
+    },
+    {
+      "name": "requirement",
+      "description": "a stated need, use case, or must-have the prospect requires (a deal has several)",
+      "multi": true,
+      "aliases": ["need", "use_case", "must_have", "requirements"]
+    }
+  ]
+}
