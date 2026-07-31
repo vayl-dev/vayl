@@ -9,7 +9,7 @@
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
 
-**Memory for AI agents that stays current.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
+**Vayl is the reconciling memory layer for AI agents.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
 
 ```
 "We use Redux."          → remembered
