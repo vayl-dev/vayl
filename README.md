@@ -90,6 +90,44 @@ Any tool is callable as a method (`m.check_before_act(...)`, `m.history(...)`); 
 
 **TypeScript** — the same client for TS/JS agents lives in [`clients/typescript/`](clients/typescript/): `const m = await Vayl.connect({ userId: "proj_7" }); await m.remember(...); await m.recall(...)`.
 
+### Framework integrations
+
+Drop Vayl's reconciling memory into an existing agent framework as tools it can call — so a plain vector store's "hands you back both Redux and Zustand" problem just goes away. Every adapter exposes the same curated surface (`remember` · `recall` · `history` · `forget` · `list_memories`) and binds your scope server-side, so the model never sets whose memory it touches.
+
+| Framework | Install | Import |
+|---|---|---|
+| **LangGraph / LangChain** | `pip install 'vayl-mcp[langgraph]'` | `from vayl.integrations.langgraph import VaylMemory` |
+| **OpenAI Agents SDK** | `pip install 'vayl-mcp[openai-agents]'` | `from vayl.integrations.openai_agents import VaylMemory` |
+| **CrewAI** | `pip install 'vayl-mcp[crewai]'` | `from vayl.integrations.crewai import VaylMemory` |
+| **Vercel AI SDK** (TS) | `npm i vayl ai zod` | `import { vaylTools } from "vayl/vercel"` |
+| **Mastra** (TS) | `npm i vayl @mastra/core zod` | `import { vaylTools } from "vayl/mastra"` |
+
+```python
+# Python — LangGraph / OpenAI Agents / CrewAI all follow this shape
+from vayl.integrations.langgraph import VaylMemory
+
+with VaylMemory(user_id="proj_7") as mem:
+    agent = mem.agent("openai:gpt-4o-mini")          # ready agent wired to memory
+    agent.invoke({"messages": [("user", "We moved off Redux to Zustand. What do we use now?")]})
+    # or bind the tools onto your own agent: create_agent(model, tools=mem.tools())
+```
+
+```ts
+// TypeScript — Vercel AI SDK (Mastra is the same, from "vayl/mastra")
+import { generateText, stepCountIs } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { Vayl } from "vayl";
+import { vaylTools } from "vayl/vercel";
+
+const m = await Vayl.connect({ userId: "proj_7" });
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools: vaylTools(m),
+  stopWhen: stepCountIs(5),
+  prompt: "We moved off Redux to Zustand. What do we use now?",
+});
+```
+
 ---
 
 ## What your agent gets

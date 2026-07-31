@@ -40,6 +40,51 @@ await withVayl({ userId: "proj_7" }, async (m) => {
 });
 ```
 
+## Framework integrations
+
+Give an agent Vayl's *reconciling* memory as tools it can call — the agent never gets handed both
+"Redux" and "Zustand". Each adapter is a subpath import and takes a peer dependency you install
+alongside `vayl` (plus `zod`). Scope (`userId` / `agentId` / `runId`) is bound on the client, never a
+tool the model can set.
+
+**Vercel AI SDK** — `npm i vayl ai zod`:
+
+```ts
+import { generateText, stepCountIs } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { Vayl } from "vayl";
+import { vaylTools } from "vayl/vercel";
+
+const m = await Vayl.connect({ userId: "proj_7" });
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools: vaylTools(m),                 // remember / recall / history / forget / list_memories
+  stopWhen: stepCountIs(5),
+  prompt: "We moved off Redux to Zustand. What do we use now?",
+});
+await m.close();
+```
+
+**Mastra** — `npm i vayl @mastra/core zod`:
+
+```ts
+import { Agent } from "@mastra/core/agent";
+import { Vayl } from "vayl";
+import { vaylTools } from "vayl/mastra";
+
+const m = await Vayl.connect({ userId: "proj_7" });
+const agent = new Agent({
+  id: "assistant",
+  name: "Assistant",
+  instructions: "Call recall before answering; call remember when the user states or changes a fact.",
+  model: "openai/gpt-4o",              // Mastra v1 model-router string
+  tools: vaylTools(m),
+});
+```
+
+`vaylTools(m, { include: [...] , exclude: [...] })` narrows the tool set. (Python agents — LangGraph,
+OpenAI Agents SDK, CrewAI — are served from the [Python package](https://github.com/vayl-dev/vayl).)
+
 ## API
 
 - `Vayl.connect(opts)` / `new Vayl(opts)` + `await m.connect()`
