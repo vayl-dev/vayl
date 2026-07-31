@@ -1,0 +1,86 @@
+{
+  "_note": "Built-in personal-assistant preset — for long-lived assistants that must keep a user's durable facts and preferences current across sessions. Enable with VAYL_SLOT_SCHEMA=preset:assistant. Optionally VAYL_CRITICAL_CATEGORIES=critical so dietary restrictions / allergies are always surfaced before the assistant suggests food or places. Nothing is confirm-gated (personal, low-stakes, applies immediately). Identity and settings are single-valued (a change supersedes the old value — a move to a new city retires the old one); preferences, goals, people, dates, and projects are lists.",
+  "slots": [
+    {
+      "name": "user_name",
+      "description": "how the user wants to be addressed",
+      "verbatim": true,
+      "aliases": ["name", "preferred_name", "display_name"]
+    },
+    {
+      "name": "timezone",
+      "description": "the user's timezone",
+      "aliases": ["tz", "time_zone"]
+    },
+    {
+      "name": "location",
+      "description": "where the user is based (city / region)",
+      "aliases": ["city", "home_location", "based_in", "current_location"]
+    },
+    {
+      "name": "preferred_language",
+      "description": "the language the user prefers to communicate in",
+      "aliases": ["language_preference", "locale", "spoken_language"]
+    },
+    {
+      "name": "communication_style",
+      "description": "how the user likes responses (e.g. concise, detailed, formal, casual, no emoji)",
+      "aliases": ["tone_preference", "response_style", "style_preference"]
+    },
+    {
+      "name": "employer",
+      "description": "the user's current employer or company",
+      "aliases": ["company", "workplace", "organization"]
+    },
+    {
+      "name": "role",
+      "description": "the user's current job title or role",
+      "aliases": ["job_title", "occupation", "position", "title"]
+    },
+    {
+      "name": "dietary_restriction",
+      "description": "a food the user must or chooses to avoid, including allergies (a user may have several)",
+      "category": "critical",
+      "verbatim": true,
+      "multi": true,
+      "aliases": ["diet", "dietary_need", "food_restriction", "food_allergy"]
+    },
+    {
+      "name": "preference",
+      "description": "a stated personal preference (a user has many)",
+      "multi": true,
+      "aliases": ["preferences", "likes", "liking"]
+    },
+    {
+      "name": "goal",
+      "description": "a goal the user is working toward (a user may have several)",
+      "multi": true,
+      "aliases": ["objective", "aspiration", "target"]
+    },
+    {
+      "name": "important_date",
+      "description": "a date that matters to the user (birthday, anniversary, deadline) — several",
+      "verbatim": true,
+      "multi": true,
+      "aliases": ["date", "anniversary", "birthday", "key_date"]
+    },
+    {
+      "name": "contact",
+      "description": "a person in the user's life and their relationship (e.g. 'Sam — manager') — several",
+      "multi": true,
+      "aliases": ["person", "relationship", "known_person"]
+    },
+    {
+      "name": "interest",
+      "description": "a hobby or topic the user is interested in (a user has many)",
+      "multi": true,
+      "aliases": ["hobby", "topic_of_interest", "interests"]
+    },
+    {
+      "name": "current_project",
+      "description": "an ongoing project or task the user is working on (a user may have several)",
+      "multi": true,
+      "aliases": ["project", "ongoing_task", "active_project"]
+    }
+  ]
+}

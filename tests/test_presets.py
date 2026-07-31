@@ -6,8 +6,44 @@ import pytest
 from vayl.memory import schema
 
 
-def test_list_presets_bundles_the_three_domains():
-    assert set(schema.list_presets()) >= {"clinical", "finance", "support"}
+def test_list_presets_bundles_all_domains():
+    assert set(schema.list_presets()) >= {"clinical", "finance", "support", "coding", "assistant", "sales"}
+
+
+def test_every_preset_loads_and_has_no_alias_collisions():
+    """Integrity guard for all bundled presets: each loads, is non-empty, and no two slots claim the
+    same (normalized) name/alias — a collision would let one slot silently shadow another."""
+    for name in schema.list_presets():
+        sc = schema.load(path=f"preset:{name}")
+        assert len(sc) > 0, name
+        keys = [k for spec in sc.slots for k in spec.keys]
+        assert len(keys) == len(set(keys)), f"alias collision in preset:{name}"
+
+
+def test_coding_supersedes_stack_choices_and_lists_conventions():
+    sc = schema.load(path="preset:coding")
+    # 'Redux' and 'Zustand' both resolve to the SAME single-valued slot → a switch supersedes.
+    state = sc.resolve("state_management")              # alias of state_library
+    assert state.name == "state_library" and not state.multi and state.confirm is False
+    # conventions are a verbatim guardrail list, surfaced via the critical-fact channel
+    conv = sc.resolve("coding_convention")
+    assert conv.name == "convention" and conv.multi and conv.verbatim and conv.category == "guardrail"
+    assert sc.resolve("node_version").name == "runtime_version"   # alias resolves
+
+
+def test_assistant_flags_dietary_restrictions_as_critical():
+    sc = schema.load(path="preset:assistant")
+    diet = sc.resolve("food_allergy")                   # alias of dietary_restriction
+    assert diet.name == "dietary_restriction" and diet.category == "critical" and diet.multi
+    assert sc.resolve("likes").name == "preference"     # alias resolves; ungated
+    assert all(s.confirm is False for s in sc.slots)
+
+
+def test_sales_deal_state_is_single_valued_and_ungated():
+    sc = schema.load(path="preset:sales")
+    assert sc.resolve("stage").name == "deal_stage" and not sc.resolve("stage").multi
+    assert sc.resolve("action_item").name == "next_step" and sc.resolve("action_item").multi
+    assert all(s.confirm is False for s in sc.slots)    # deal facts apply immediately
 
 
 def test_clinical_meds_are_gated_allergies_are_not():
