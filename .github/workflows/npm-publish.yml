@@ -1,0 +1,48 @@
+name: npm publish
+
+# Publish the TypeScript client (clients/typescript) to npm on a `ts-v*` tag
+# (e.g. `ts-v0.1.0`), via npm Trusted Publishing (OIDC — no stored token) with build
+# provenance. The tag drives the release; npm verifies the workflow identity.
+#
+# One-time setup on npm (https://www.npmjs.com/package/vayl → Settings → Trusted Publishers):
+#   provider: GitHub Actions · org/repo: vayl-dev/vayl · workflow: npm-publish.yml
+# For the very first publish of a brand-new package name, either configure the trusted
+# publisher first (npm allows pre-registering it), or run `npm publish` once locally after
+# `npm login`, then all later releases go through this workflow with no token.
+
+on:
+  push:
+    tags:
+      - "ts-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/typescript
+    permissions:
+      id-token: write   # OIDC token for npm Trusted Publishing + provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: Update npm (Trusted Publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
+      - name: Verify the tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#ts-v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "tag=$TAG package.json=$PKG"
+          test "$TAG" = "$PKG" || { echo "::error::tag ts-v$TAG does not match package.json $PKG"; exit 1; }
+      - name: Install and build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Publish to npm (provenance, OIDC — no token)
+        run: npm publish --provenance --access public

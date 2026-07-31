@@ -20,6 +20,10 @@
     }
   },
   "files": ["dist", "README.md"],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
