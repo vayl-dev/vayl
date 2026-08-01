@@ -99,8 +99,8 @@ Drop Vayl's reconciling memory into an existing agent framework as tools it can 
 | **LangGraph / LangChain** | `pip install 'vayl-mcp[langgraph]'` | `from vayl.integrations.langgraph import VaylMemory` |
 | **OpenAI Agents SDK** | `pip install 'vayl-mcp[openai-agents]'` | `from vayl.integrations.openai_agents import VaylMemory` |
 | **CrewAI** | `pip install 'vayl-mcp[crewai]'` | `from vayl.integrations.crewai import VaylMemory` |
-| **Vercel AI SDK** (TS) | `npm i vayl ai zod` | `import { vaylTools } from "vayl/vercel"` |
-| **Mastra** (TS) | `npm i vayl @mastra/core zod` | `import { vaylTools } from "vayl/mastra"` |
+| **Vercel AI SDK** (TS) | `npm i @vayl/client ai zod` | `import { vaylTools } from "@vayl/client/vercel"` |
+| **Mastra** (TS) | `npm i @vayl/client @mastra/core zod` | `import { vaylTools } from "@vayl/client/mastra"` |
 
 ```python
 # Python — LangGraph / OpenAI Agents / CrewAI all follow this shape
@@ -113,11 +113,11 @@ with VaylMemory(user_id="proj_7") as mem:
 ```
 
 ```ts
-// TypeScript — Vercel AI SDK (Mastra is the same, from "vayl/mastra")
+// TypeScript — Vercel AI SDK (Mastra is the same, from "@vayl/client/mastra")
 import { generateText, stepCountIs } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { Vayl } from "vayl";
-import { vaylTools } from "vayl/vercel";
+import { Vayl } from "@vayl/client";
+import { vaylTools } from "@vayl/client/vercel";
 
 const m = await Vayl.connect({ userId: "proj_7" });
 const { text } = await generateText({
