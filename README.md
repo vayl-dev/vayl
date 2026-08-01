@@ -9,6 +9,10 @@
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
 
+<p align="center">
+  <img src="docs/vayl-demo.gif" alt="Vayl demo on a local model: plain sentences are stored via the vayl-mcp server, then recall returns the current answer — 'what do we use for state now?' returns Zustand; 'are we still using Redux?' returns no, we switched to Zustand." width="860">
+</p>
+
 **Vayl is the reconciling memory layer for AI agents.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
 
 ```
