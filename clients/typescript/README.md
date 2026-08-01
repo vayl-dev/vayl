@@ -1,10 +1,10 @@
-# vayl (TypeScript)
+# @vayl/client (TypeScript)
 
 TypeScript client for [Vayl](https://github.com/vayl-dev/vayl) — reconciling memory for AI agents.
 Call the MCP tools as methods instead of hand-writing `tools/call` JSON.
 
 ```bash
-npm install vayl
+npm install @vayl/client
 ```
 
 You also need the Vayl MCP server: `pip install vayl-mcp` (the client spawns `vayl-mcp` over stdio),
@@ -13,7 +13,7 @@ or point it at a running team server over HTTP.
 ## Usage
 
 ```ts
-import { Vayl } from "vayl";
+import { Vayl } from "@vayl/client";
 
 // local: spawns `vayl-mcp` over stdio
 const m = await Vayl.connect({ userId: "proj_7" });
@@ -32,7 +32,7 @@ const m2 = await Vayl.connect({
 Or scope it so it always closes:
 
 ```ts
-import { withVayl } from "vayl";
+import { withVayl } from "@vayl/client";
 
 await withVayl({ userId: "proj_7" }, async (m) => {
   await m.remember("We use Postgres as our primary database");
@@ -44,16 +44,16 @@ await withVayl({ userId: "proj_7" }, async (m) => {
 
 Give an agent Vayl's *reconciling* memory as tools it can call — the agent never gets handed both
 "Redux" and "Zustand". Each adapter is a subpath import and takes a peer dependency you install
-alongside `vayl` (plus `zod`). Scope (`userId` / `agentId` / `runId`) is bound on the client, never a
+alongside `@vayl/client` (plus `zod`). Scope (`userId` / `agentId` / `runId`) is bound on the client, never a
 tool the model can set.
 
-**Vercel AI SDK** — `npm i vayl ai zod`:
+**Vercel AI SDK** — `npm i @vayl/client ai zod`:
 
 ```ts
 import { generateText, stepCountIs } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { Vayl } from "vayl";
-import { vaylTools } from "vayl/vercel";
+import { Vayl } from "@vayl/client";
+import { vaylTools } from "@vayl/client/vercel";
 
 const m = await Vayl.connect({ userId: "proj_7" });
 const { text } = await generateText({
@@ -65,12 +65,12 @@ const { text } = await generateText({
 await m.close();
 ```
 
-**Mastra** — `npm i vayl @mastra/core zod`:
+**Mastra** — `npm i @vayl/client @mastra/core zod`:
 
 ```ts
 import { Agent } from "@mastra/core/agent";
-import { Vayl } from "vayl";
-import { vaylTools } from "vayl/mastra";
+import { Vayl } from "@vayl/client";
+import { vaylTools } from "@vayl/client/mastra";
 
 const m = await Vayl.connect({ userId: "proj_7" });
 const agent = new Agent({
