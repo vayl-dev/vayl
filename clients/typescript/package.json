@@ -1,5 +1,5 @@
 {
-  "name": "@vayl/client",
+  "name": "@vayl.dev/client",
   "version": "0.1.0",
   "description": "The reconciling memory layer for AI agents — TypeScript client for the Vayl MCP server.",
   "type": "module",
