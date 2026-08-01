@@ -66,6 +66,13 @@ Add to your MCP client (Claude Desktop / Cursor) config:
 suite. Any OpenAI-compatible endpoint works — point `OPENAI_BASE_URL` at your own
 self-hosted or EU-region deployment if data residency matters.
 
+> **Models & reliable reconciliation.** Reconciliation quality depends on how well the model
+> extracts facts. For **declared slots** (a [preset](https://vayl.gitbook.io/vayl-docs/integrations/agent-frameworks) via
+> `VAYL_SLOT_SCHEMA=preset:coding`, etc.) the same-slot invariant retires the old value
+> *deterministically*, so even a small local model reconciles a switch correctly. For **free-form**
+> memory (no preset), use a capable model — the default `gpt-5-mini`, or a ~7B+ local model — so the
+> extractor names slots consistently. A 3B local model works, but is less reliable without a preset.
+
 Restart the client — your agent now has the tools below. `VAYL_DB` is where memory persists.
 
 **Or let the CLI write the config for you.** Vayl is a [FastMCP](https://gofastmcp.com) server, so `fastmcp install` wires it into your client in one command:

@@ -1025,10 +1025,14 @@ class LLMMemory:
             # Two contradictory actives on one slot never survive: recency wins the slot, unless a
             # source-authority policy forbids the overwrite (then the current value stands and the
             # incoming one is flagged). COEXIST is exempt — it differs by SCOPE, so both stay true.
-            # An event has no rival: it does not occupy a slot that something else can hold.
-            # Events are also excluded from being rivals, so a later state fact sharing a subject
-            # cannot retire a record of something that happened.
-            if is_event:
+            # An event has no rival: it does not occupy a single-valued slot — EXCEPT when the operator
+            # declared the slot single-valued AND a different value is already active there. Then the
+            # incoming fact contradicts the current value, so it is a state change and must supersede,
+            # even if a weak extractor mislabelled it kind="event" (the failure that otherwise leaves
+            # "Redux" active beside "Zustand"). An event on an as-yet-empty declared slot has no rival
+            # and stays an event; free-form and list slots keep the plain event exemption.
+            declared_single = spec is not None and not is_multi
+            if is_event and not declared_single:
                 rival = None
             elif act == Action.SUPERSEDE and target:
                 rival = target                            # the extractor/feed named the item
@@ -1040,9 +1044,11 @@ class LLMMemory:
                 rival = (_slot_target([s for s in self.active() if not _is_event(s)], subj, val, True)
                          if act == Action.SUPERSEDE else None)
             elif act in (Action.ADD, Action.SUPERSEDE, Action.REFINE):
+                # A declared single-valued slot admits an active event as a rival too, so a mislabelled
+                # state-change retires the incumbent (and later switches keep reconciling cleanly).
                 rival = next((s for s in self.active()
                               if s.subject == subj and s.scope == scope and s.value != val
-                              and not _is_event(s)), None)
+                              and (declared_single or not _is_event(s))), None)
             else:
                 rival = None
             if rival is not None:
