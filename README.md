@@ -9,6 +9,10 @@
 ![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
 
+<p align="center">
+  <img src="docs/vayl-demo.gif" alt="Vayl demo on a local model: plain sentences are stored via the vayl-mcp server, then recall returns the current answer — 'what do we use for state now?' returns Zustand; 'are we still using Redux?' returns no, we switched to Zustand." width="860">
+</p>
+
 **Vayl is the reconciling memory layer for AI agents.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
 
 ```
@@ -61,6 +65,13 @@ Add to your MCP client (Claude Desktop / Cursor) config:
 `gpt-5-mini` is the default and scores **0% silently-wrong** on the messy real-world
 suite. Any OpenAI-compatible endpoint works — point `OPENAI_BASE_URL` at your own
 self-hosted or EU-region deployment if data residency matters.
+
+> **Models & reliable reconciliation.** Reconciliation quality depends on how well the model
+> extracts facts. For **declared slots** (a [preset](https://vayl.gitbook.io/vayl-docs/integrations/agent-frameworks) via
+> `VAYL_SLOT_SCHEMA=preset:coding`, etc.) the same-slot invariant retires the old value
+> *deterministically*, so even a small local model reconciles a switch correctly. For **free-form**
+> memory (no preset), use a capable model — the default `gpt-5-mini`, or a ~7B+ local model — so the
+> extractor names slots consistently. A 3B local model works, but is less reliable without a preset.
 
 Restart the client — your agent now has the tools below. `VAYL_DB` is where memory persists.
 

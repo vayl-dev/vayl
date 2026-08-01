@@ -181,6 +181,21 @@ def test_category_and_event_tags_coexist(clinical_engine):
     assert (s.metadata or {}).get("category") == "critical"
 
 
+def test_declared_single_slot_supersedes_a_mislabelled_event(monkeypatch):
+    """A weak extractor can tag a real state-change as kind='event'. On a DECLARED single-valued slot
+    with a value already active, that must STILL supersede — otherwise two contradictory values sit
+    active and the store answers stale (the Redux-beside-Zustand failure a small local model hits)."""
+    monkeypatch.setattr(llm_memory, "SLOT_SCHEMA",
+                        from_dict({"slots": [{"name": "state_library",
+                                              "aliases": ["state_management"]}]}))
+    m = LLMMemory()
+    m._apply(fact("state_library", "Redux"), "we use Redux")
+    m._apply(fact("state_management", "Zustand", kind="event"), "we switched to Zustand")  # mislabelled
+    assert [s.value for s in m.active()] == ["Zustand"]      # one live value; Redux retired
+    m._apply(fact("state_library", "Jotai", kind="event"), "now Jotai")   # winner isn't stuck as an event
+    assert [s.value for s in m.active()] == ["Jotai"]
+
+
 def test_no_schema_means_no_behaviour_change():
     m = LLMMemory()
     m._apply(fact("db", "Postgres"), "we use Postgres")
