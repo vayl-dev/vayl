@@ -1,0 +1,14 @@
+# GitBook Git Sync configuration.
+# The Documentation space (https://vayl.gitbook.io/vayl-docs) syncs into ./docs/.
+#
+# To connect (one-time, in the GitBook UI — the API can't wire this up):
+#   GitBook → the Documentation space → Sync → GitHub → repo vayl-dev/vayl,
+#   branch `main`, directory `docs/`.
+# Run the FIRST sync in the GitBook → GitHub direction so the already-published pages
+# become the source of truth; GitBook then writes SUMMARY.md, README.md and the page
+# tree into ./docs/. After that, edit docs in GitBook OR via pull requests to ./docs/.
+root: ./docs/
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md
