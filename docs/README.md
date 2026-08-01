@@ -5,6 +5,10 @@
 
 Guides, MCP tool reference, tutorials, core concepts, and deployment all live there.
 
+Repository guide drafts:
+
+- [Use Vayl with Cursor](cursor.md)
+
 Deployer / DPO essentials still live at the repo root:
 [`../README.md`](../README.md),
 [`../DEPLOY.md`](../DEPLOY.md),
