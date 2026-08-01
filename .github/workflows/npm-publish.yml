@@ -1,14 +1,14 @@
 name: npm publish
 
 # Publish the TypeScript client (clients/typescript) to npm on a `ts-v*` tag
-# (e.g. `ts-v0.1.0`), via npm Trusted Publishing (OIDC — no stored token) with build
-# provenance. The tag drives the release; npm verifies the workflow identity.
+# (e.g. `ts-v0.1.0`). Authenticates with the `NPM_TOKEN` repo secret and attaches
+# build provenance (OIDC id-token). The tag drives the release.
 #
-# One-time setup on npm (https://www.npmjs.com/package/vayl → Settings → Trusted Publishers):
-#   provider: GitHub Actions · org/repo: vayl-dev/vayl · workflow: npm-publish.yml
-# For the very first publish of a brand-new package name, either configure the trusted
-# publisher first (npm allows pre-registering it), or run `npm publish` once locally after
-# `npm login`, then all later releases go through this workflow with no token.
+# Setup: add a granular, publish-only npm access token as the `NPM_TOKEN` GitHub
+# Actions secret (Settings → Secrets and variables → Actions). Use a freshly rotated
+# token — never one that has been pasted anywhere. To move to tokenless publishing
+# later, register a Trusted Publisher on npm (repo vayl-dev/vayl, workflow
+# npm-publish.yml) and drop the NODE_AUTH_TOKEN env below.
 
 on:
   push:
@@ -44,5 +44,7 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run build
-      - name: Publish to npm (provenance, OIDC — no token)
+      - name: Publish to npm (token auth + build provenance)
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
