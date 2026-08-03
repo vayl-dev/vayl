@@ -50,7 +50,7 @@ pooled = ["urllib3>=2"]
 # (see vayl.integrations.*). Each is optional and imported lazily.
 #   langgraph: langchain-core builds the tools; langchain (v1) provides the `create_agent` factory the
 #   agent() helper prefers; langgraph is the pre-v1 create_react_agent fallback.
-langgraph = ["langchain-core>=0.3", "langchain>=1", "langgraph>=0.2"]
+langgraph = ["langchain-core>=0.3", "langchain>=1", "langgraph>=1.2.10"]
 openai-agents = ["openai-agents>=0.1"]      # @function_tool + Agent/Runner
 crewai = ["crewai>=1"]                        # crewai.tools @tool + Agent (v1 memory API)
 # Dev tooling: offline unit tests + lint (what CI runs). langchain-core and openai-agents are here so
