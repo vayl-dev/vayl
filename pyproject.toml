@@ -39,7 +39,7 @@ graph = ["neo4j>=5"]
 # starlette + httpx come transitively via `mcp`; uvicorn is the ASGI server to actually run it.
 server = ["uvicorn>=0.30"]
 # OIDC SSO (M5): verify IdP-issued ID tokens (JWT/RS256). cryptography is already a core dep.
-sso = ["pyjwt>=2"]
+sso = ["pyjwt>=2.13.0"]
 # Postgres backend (M6): concurrent multi-writer storage for scale (foundation; validate live).
 postgres = ["psycopg[binary]>=3.1"]
 # HTTP connection pooling for the LLM/embedding endpoint — reuses keep-alive connections instead of
