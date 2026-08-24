@@ -223,7 +223,7 @@ Every message is turned into fact(s) by one LLM call, then reconciled against wh
 
 ```mermaid
 flowchart TD
-    A["Agent message<br/>'we moved off Redux to Zustand'"] -->|1 LLM call| B[Extract fact&#40;s&#41;]
+    A["Agent message<br/>'we moved off Redux to Zustand'"] -->|1 LLM call| B["Extract fact(s)"]
     B --> C{"Reconcile vs stored<br/>(same-slot invariant)"}
     C -->|new value| D[SUPERSEDE<br/>old → history]
     C -->|removal| E[RETRACT<br/>tombstone → history]
@@ -235,7 +235,7 @@ flowchart TD
     G --> H
     H --> I[["Audit hash-chain<br/>signed · tamper-evident"]]
 
-    Q["recall&#40;question&#41;"] --> R[Hybrid retrieval<br/>semantic + lexical]
+    Q["recall(question)"] --> R["Hybrid retrieval<br/>semantic + lexical"]
     H -. active working set .-> R
     R --> S[Top-k relevant facts]
     S -->|1 LLM call| T["Answer 'Zustand'<br/>or 'I don't know'"]
