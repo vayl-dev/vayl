@@ -5,8 +5,8 @@ The reconciliation engine (_apply): per-action behaviour and the interactions be
 import pytest
 
 from vayl.memory import llm_memory
-from vayl.memory.llm_memory import LLMMemory, _is_event, is_critical
-from vayl.memory.reconcile import AUTO_THRESHOLD, Action, Statement, Status
+from vayl.memory.llm_memory import AUTO_THRESHOLD, LLMMemory, _is_event, is_critical
+from vayl.memory.reconcile import Action, Statement, Status
 from vayl.memory.schema import from_dict
 
 # ══════════════════════════════════════════════════════════════════

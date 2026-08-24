@@ -22,11 +22,6 @@ class SafetyPolicy:
     max_staleness_days: Optional[float] = None
     block_on_recent_change_days: Optional[float] = None  # a JUST-changed fact may be volatile — hold
 
-    @classmethod
-    def strict(cls):
-        """A cautious profile for high-stakes actions (payments, medical, legal)."""
-        return cls(min_confidence=0.9, max_staleness_days=90, block_on_recent_change_days=1)
-
 
 def evaluate_fact(fact, policy, now):
     """Pure verdict for one fact — a provenance dict (status / confidence / supersedes / set_at).

@@ -1,4 +1,12 @@
+<div align="center">
+
 # Vayl
+
+<h3>The reconciling memory layer for AI agents</h3>
+
+<samp>a new value replaces the old&nbsp;&nbsp;·&nbsp;&nbsp;"we dropped X" actually removes X&nbsp;&nbsp;·&nbsp;&nbsp;history stays queryable</samp>
+
+<br>
 
 [![PyPI](https://img.shields.io/pypi/v/vayl-mcp?color=346ddb&label=pypi)](https://pypi.org/project/vayl-mcp/)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/vayl-dev/vayl/badge)](https://scorecard.dev/viewer/?uri=github.com/vayl-dev/vayl)
@@ -6,14 +14,17 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B%20%7C%203.14t-blue)
 ![Tests](https://img.shields.io/badge/tests-551%20passing-brightgreen)
 ![Protocol](https://img.shields.io/badge/protocol-MCP-black)
-![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen)
 [![Docs](https://img.shields.io/badge/docs-vayl.gitbook.io-346DDB)](https://vayl.gitbook.io/vayl-docs)
+
+[**Quickstart**](#quickstart-2-min)&nbsp; ·&nbsp; [Why Vayl](#why-vayl)&nbsp; ·&nbsp; [Use it from code](#use-it-from-code)&nbsp; ·&nbsp; [Tools](#what-your-agent-gets)&nbsp; ·&nbsp; [How it works](#how-it-works)&nbsp; ·&nbsp; [Benchmarks](#benchmarks)&nbsp; ·&nbsp; [Contributing](#contributing)
+
+</div>
 
 <p align="center">
   <img src="assets/vayl-demo.gif" alt="Vayl demo on a local model: plain sentences are stored via the vayl-mcp server, then recall returns the current answer — 'what do we use for state now?' returns Zustand; 'are we still using Redux?' returns no, we switched to Zustand." width="860">
 </p>
 
-**Vayl is the reconciling memory layer for AI agents.** Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. Vayl **reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client (Claude Desktop, Cursor, Claude Code).
+Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. **Vayl reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client — Claude Desktop, Cursor, Claude Code.
 
 ```
 "We use Redux."                             → remembered
@@ -29,9 +40,7 @@
 - 🕰️ **History is kept and auditable** — ask what's true *now* or what was true *before*; every change is on a tamper-evident, signed audit chain.
 - 🔌 **Local, cheap, pluggable** — SQLite by default (no server to run), ~2 LLM calls per fact, one-command install into Claude / Cursor / Claude Code, and it speaks MCP so any agent client plugs in.
 
-📚 **Full documentation:** [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) — guides, MCP tool reference, tutorials, and deployment.
-
-**Jump to:** [Why Vayl](#why-vayl) · [Quickstart](#quickstart-2-min) · [Use it from code](#use-it-from-code) · [What your agent gets](#what-your-agent-gets) · [How it works](#how-it-works) · [Benchmarks](#benchmarks) · [Contributing](#contributing)
+> 📚 **Full documentation** → [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) — guides, MCP tool reference, tutorials, and deployment.
 
 ---
 
@@ -214,7 +223,7 @@ Every message is turned into fact(s) by one LLM call, then reconciled against wh
 
 ```mermaid
 flowchart TD
-    A["Agent message<br/>'we moved off Redux to Zustand'"] -->|1 LLM call| B[Extract fact&#40;s&#41;]
+    A["Agent message<br/>'we moved off Redux to Zustand'"] -->|1 LLM call| B["Extract fact(s)"]
     B --> C{"Reconcile vs stored<br/>(same-slot invariant)"}
     C -->|new value| D[SUPERSEDE<br/>old → history]
     C -->|removal| E[RETRACT<br/>tombstone → history]
@@ -226,7 +235,7 @@ flowchart TD
     G --> H
     H --> I[["Audit hash-chain<br/>signed · tamper-evident"]]
 
-    Q["recall&#40;question&#41;"] --> R[Hybrid retrieval<br/>semantic + lexical]
+    Q["recall(question)"] --> R["Hybrid retrieval<br/>semantic + lexical"]
     H -. active working set .-> R
     R --> S[Top-k relevant facts]
     S -->|1 LLM call| T["Answer 'Zustand'<br/>or 'I don't know'"]
