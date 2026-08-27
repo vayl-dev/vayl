@@ -68,7 +68,8 @@ class Vayl:
         self._tool_accepts = {}                           # tool name -> set of accepted param names
         self._connected = concurrent.futures.Future()    # resolves once the session is live
         self._closed = False
-        self._loop = _new_loop()
+        import asyncio
+        self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, name="vayl-client", daemon=True)
         self._thread.start()
         # Run the whole session lifecycle inside ONE task so anyio cancel scopes enter/exit in the
@@ -170,8 +171,3 @@ class Vayl:
 
     def __exit__(self, *exc):
         self.close()
-
-
-def _new_loop():
-    import asyncio
-    return asyncio.new_event_loop()
