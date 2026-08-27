@@ -1,0 +1,7 @@
+name: "Vayl CodeQL config"
+
+# Scope SAST to the shipped package. tests/ and benchmarks/ are not distributed
+# and are not attack surface — scanning them only floods the Security tab with
+# non-security noise (assert side-effects in tests, print() in benchmarks, etc.).
+paths:
+  - src
