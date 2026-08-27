@@ -29,7 +29,8 @@ jobs:
         uses: github/codeql-action/init@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         with:
           languages: python
-          queries: security-and-quality
+          # security-extended = all security queries (no maintainability lint; ruff covers that in CI).
+          queries: security-extended
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL analysis

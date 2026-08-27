@@ -6,7 +6,7 @@
 #
 # NOTE: not built in this environment (no Docker available at authoring time) — validate with a real
 # `docker build` before shipping. TLS is terminated by your reverse proxy / ingress; don't expose raw.
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:7a8b475003c4fe15a2cd4e55e5cfc2f3560bdc9333d624f24cdd6d4340fd7a17
 
 # Non-root runtime user; /data is the writable volume for the SQLite DB + encryption/signing keys.
 RUN useradd --create-home --uid 10001 vayl && mkdir -p /data && chown vayl:vayl /data
