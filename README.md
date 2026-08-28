@@ -2,9 +2,9 @@
 
 # Vayl
 
-<h3>The reconciling memory layer for AI agents</h3>
+<h3>Reconciling memory for coding agents</h3>
 
-<samp>a new value replaces the old&nbsp;&nbsp;·&nbsp;&nbsp;"we dropped X" actually removes X&nbsp;&nbsp;·&nbsp;&nbsp;history stays queryable</samp>
+<samp>switched Redux → Zustand? your agent should stop suggesting Redux &nbsp;—&nbsp; Vayl makes sure it does</samp>
 
 <br>
 
@@ -24,7 +24,7 @@
   <img src="assets/vayl-demo.gif" alt="Vayl demo on a local model: plain sentences are stored via the vayl-mcp server, then recall returns the current answer — 'what do we use for state now?' returns Zustand; 'are we still using Redux?' returns no, we switched to Zustand." width="860">
 </p>
 
-Most memory layers *accumulate* — they save every fact and later hand your agent stale ones. **Vayl reconciles**: a new value replaces the old one, "we dropped X" actually removes X, and you can still ask what was true *before*. Drops into any MCP client — Claude Desktop, Cursor, Claude Code.
+Your coding agent keeps reaching for the library you dropped — you moved off Redux to Zustand three sessions ago, and it still suggests Redux. Most memory layers *accumulate*: they save every fact and hand the model back the stale one. **Vayl reconciles** — when you switch, the old choice is actually retired, so "what do we use for state?" returns Zustand, not both. And you can still ask what was true *before*. Drops into **Cursor and Claude Code** (or any MCP agent) in ~2 minutes.
 
 ```
 "We use Redux."                             → remembered
