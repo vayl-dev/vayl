@@ -146,3 +146,65 @@ def test_cli_status_and_up(tmp_path, monkeypatch, capsys):
     d.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (99, 'future', 'x')")
     d.commit()
     assert migrations.main(["status"]) == 1 and "only knows up to" in capsys.readouterr().err
+
+
+def _schema(d):
+    return sorted(r for r in d.execute("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"))
+
+
+def test_every_migration_is_idempotent(tmp_path):
+    """The rule the module states: running a migration again changes nothing."""
+    from vayl.storage import migrations
+    d = Database(str(tmp_path / "v.db"))
+    for _version, _name, fn in migrations.MIGRATIONS:
+        fn(d); d.commit()
+        before = _schema(d)
+        fn(d); d.commit()
+        assert _schema(d) == before
+
+
+def test_a_failing_migration_leaves_nothing_behind(tmp_path, monkeypatch):
+    """Pending migrations commit together or not at all: no half-built schema, no ledger row."""
+    from vayl.storage import migrations
+
+    def boom(db):
+        db.execute("CREATE TABLE half_done(x TEXT)")
+        db.add_column_if_missing("statements", "doomed TEXT")
+        raise RuntimeError("migration 2 failed midway")
+
+    monkeypatch.setattr(migrations, "MIGRATIONS", [*migrations.MIGRATIONS, (2, "boom", boom)])
+    monkeypatch.setattr(migrations, "LATEST", 2)
+    path = str(tmp_path / "v.db")
+    with pytest.raises(RuntimeError, match="midway"):
+        migrations.migrate(Database(path))
+    d = Database(path)
+    tables = {r[0] for r in d.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "half_done" not in tables and "statements" not in tables       # v1 rolled back with it
+    assert "schema_migrations" not in tables or not list(d.execute("SELECT * FROM schema_migrations"))
+
+    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:1])
+    monkeypatch.setattr(migrations, "LATEST", 1)
+    assert migrations.migrate(Database(path)) == [1]                      # a clean retry succeeds
+
+
+def test_concurrent_migrators_apply_each_migration_once(tmp_path):
+    """Separate connections (as separate processes would have) race to migrate one file."""
+    import threading
+
+    from vayl.storage import migrations
+    path = str(tmp_path / "v.db")
+    ran, errors = [], []
+
+    def worker():
+        try:
+            ran.extend(migrations.migrate(Database(path)))
+        except Exception as e:                                             # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors and ran == [1]
+    assert list(Database(path).execute("SELECT version FROM schema_migrations")) == [(1,)]

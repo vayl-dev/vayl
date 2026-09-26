@@ -392,3 +392,31 @@ class _StubAuth:
 
     def verify(self, _):
         return None
+
+
+def test_decrypt_cache_switch_keeps_plaintext_out_of_caches(tmp_path, _encrypted_env, monkeypatch):
+    monkeypatch.setenv("VAYL_DECRYPT_CACHE", "off")
+    st = Store(str(tmp_path / "vayl.db"))
+    m = LLMMemory()
+    m._apply(fact(subject="salary", value="120000"), "alice earns 120000")
+    st.save("u1", m)
+    for _ in range(2):
+        loaded = st.load("u1")
+        assert loaded.active()[0].value == "120000"
+        st.hydrate_embeddings("u1", loaded.statements)
+        assert loaded.statements[0]._emb is not None
+    assert st.crypter._dec_short.cache_info().currsize == 0 and not st._vectors
+
+    monkeypatch.setenv("VAYL_DECRYPT_CACHE", "of")                     # a typo must not mean "on"
+    with pytest.raises(ValueError, match="VAYL_DECRYPT_CACHE must be on or off"):
+        Store(str(tmp_path / "other.db"))
+
+
+def test_vector_cache_size_zero_disables_it(tmp_path, _encrypted_env, monkeypatch):
+    monkeypatch.setattr(store_mod, "_VECTOR_CACHE", 0)
+    st = Store(str(tmp_path / "vayl.db"))
+    m = LLMMemory()
+    m._apply(fact(subject="salary", value="120000"), "x")
+    st.save("u1", m)
+    loaded = st.load("u1")
+    assert st.hydrate_embeddings("u1", loaded.statements) == 1 and not st._vectors

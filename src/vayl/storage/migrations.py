@@ -2,13 +2,16 @@
 Versioned schema migrations — one ordered list for the whole database, recorded in `schema_migrations`.
 
 Every component (Store, Auth, Audit, Decisions, Receipts, Metrics) calls `migrate(db)` on construction,
-so whichever opens the database first brings it up to date; the rest find nothing pending. Runs on
-SQLite and Postgres, under a lock (a cross-process advisory lock on Postgres).
+so whichever opens the database first brings it up to date; the rest find nothing pending.
+
+All pending migrations and their ledger rows commit as ONE transaction, or not at all, on both engines:
+Postgres under a cross-process advisory lock, SQLite under `BEGIN IMMEDIATE` (SQLite's own write lock,
+which also holds across processes sharing the file). Both engines roll back DDL with the transaction.
 
 Rules for adding a migration — append `(next_version, "name", fn)` to MIGRATIONS, never edit or
 reorder a shipped one:
-  • Idempotent. On SQLite, DDL is not transactional, so a migration interrupted halfway must be safe
-    to run again (IF NOT EXISTS, add_column_if_missing, UPDATE … WHERE not-yet-migrated).
+  • Idempotent (IF NOT EXISTS, add_column_if_missing, UPDATE … WHERE not-yet-migrated). The baseline
+    has to be, since it upgrades pre-ledger databases in place; tests re-run every migration to check.
   • Additive, so the PREVIOUS release keeps running against the upgraded schema. That is the rollback
     story: roll the code back, the data stays readable. A change that cannot be additive (rename, drop,
     rewrite) must say so in the CHANGELOG and requires a backup before upgrading.
@@ -118,19 +121,28 @@ def migrate(db):
     if getattr(db, "_schema_current", False):
         return []
     done = []
+    # Postgres: space_lock opens the transaction and takes the advisory lock; a raise rolls it back.
+    # SQLite: space_lock is in-process only, so BEGIN IMMEDIATE supplies the cross-process lock and the
+    # transaction (Python's sqlite3 would otherwise autocommit each DDL statement on its own).
     with db.space_lock(_LOCK):
-        applied = _applied(db)
-        _check_not_newer(applied)
-        for version, name, fn in MIGRATIONS:
-            if version in applied:
-                continue
-            with db.transaction():
-                fn(db)
-                db.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?,?,?) "
-                           "ON CONFLICT(version) DO NOTHING",
-                           (version, name, datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")))
-            done.append(version)
-        db.commit()
+        if db.dialect == "sqlite":
+            db.commit()                          # BEGIN fails inside an already-open implicit transaction
+            db.execute("BEGIN IMMEDIATE")
+        try:
+            applied = _applied(db)               # read under the lock: another process may have migrated
+            _check_not_newer(applied)
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+            for version, name, fn in MIGRATIONS:
+                if version not in applied:
+                    fn(db)
+                    db.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?,?,?)",
+                               (version, name, now))
+                    done.append(version)
+            db.commit()
+        except BaseException:
+            if db.dialect == "sqlite":
+                db.rollback()
+            raise
     db._schema_current = True
     return done
 
