@@ -5,7 +5,7 @@ Vayl — reconciliation data model
 The shared domain model the reconciler runs on: the event log's `Statement`, the
 `Status` a statement can hold, and the `Action` the engine takes on a new fact.
 The live reconciler is LLM-driven and lives in `llm_memory.py`; this module holds
-only what that path (and the store, clinical medrec, and demo) import.
+only what that path (and the store and demo) import.
 
 The thesis it serves: the product's job is not perfect auto-resolution
 (impossible) — it's to NEVER be *silently wrong*. Clear cases auto-resolve;

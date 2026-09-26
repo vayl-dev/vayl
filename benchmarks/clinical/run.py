@@ -14,7 +14,6 @@ approval gate.
 
     python -m benchmarks.clinical.run          # acceptance report (pass/fail guarantees)
     python -m benchmarks.clinical.run -v       # + the full reconciled record per patient
-    python -m benchmarks.clinical.run --medrec # discharge medication reconciliation per patient
 """
 from __future__ import annotations
 
@@ -244,29 +243,7 @@ def report(verbose=False) -> int:
     return 0 if total_pass == total else 1
 
 
-def medrec_report() -> int:
-    """Print a discharge medication reconciliation for every patient that has a home list — the
-    'med rec' clinical workflow, reconstructed from Vayl's reconciling history."""
-    from benchmarks.clinical.patients import PATIENTS
-    from vayl.clinical.medrec import DEFAULT_HOME_SOURCES, reconcile_medications, render
-
-    home = set(DEFAULT_HOME_SOURCES)
-    shown = 0
-    for patient in PATIENTS:
-        if not any(str(f.get("source", "")).lower() in home for f in patient["facts"]):
-            continue                                  # only patients with a home medication history
-        m = ingest(patient)
-        print(render(reconcile_medications(m), title=patient["summary"]))
-        print()
-        shown += 1
-    if not shown:
-        print("No patient in the dataset has a home medication history (source=bpmh).")
-    return 0
-
-
 def main() -> None:
-    if "--medrec" in sys.argv:
-        raise SystemExit(medrec_report())
     raise SystemExit(report(verbose="-v" in sys.argv or "--verbose" in sys.argv))
 
 
