@@ -180,7 +180,9 @@ vayl/
 ├── benchmarks/         Model-dependent evaluations, run by hand; results in benchmarks/results/
 ├── examples/           Runnable examples, such as a coding assistant that remembers decisions
 ├── clients/typescript/ The @vayl.dev/client package, with Vercel AI SDK and Mastra adapters
-├── docs/               This documentation, synced with GitBook (see Contributing)
+├── docs/               The docs site, synced with GitBook: one folder per section (documentation/, home/,
+│                       api-reference/, changelog/, help-center/) plus gitbook-docs.yaml
+├── openapi/            vayl-server.yaml, the OpenAPI spec behind the API Reference
 └── .github/workflows/  CI (unit + integration), TS SDK CI, CodeQL, Scorecard, docs-sync, release, npm publish
 ```
 

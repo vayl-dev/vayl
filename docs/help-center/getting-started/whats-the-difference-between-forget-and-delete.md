@@ -1,13 +1,20 @@
 ---
-description: Both remove a fact — one keeps history, one erases it.
+description: Both stop a fact being current. One keeps its history, one erases it.
 icon: code-compare
 ---
 
 # What's the difference between forget and delete?
 
-Both stop a fact from being returned as current, but they differ in what they keep:
+| | `forget` | `delete` |
+| --- | --- | --- |
+| What it takes | A sentence, such as `We dropped Sentry.` | A subject key from `list_memories`, such as `monitoring` |
+| What happens | The fact is retracted: marked superseded, with a tombstone in history | Every record of the subject is erased, history included |
+| History | Kept, so `history` and audits still show it was once true | Gone, and its values are redacted from decision snapshots |
+| Receipt | None | A signed erasure receipt, when something was erased |
+| Capability | `write` (agents have it) | `delete` (admin and member roles only) |
 
-* **`forget`** retracts a fact but **keeps it in history**. The current answer no longer includes it, yet an audit or a history query can still see that it was once true. Use it for correctness.
-* **`delete`** **permanently erases** a subject, history included — the GDPR right to be forgotten. It also redacts the value from decision snapshots and issues a signed erasure receipt. Use it for privacy.
+Use `forget` for correctness and `delete` for privacy, such as a GDPR erasure request. `delete_all` erases a whole user and needs `admin`.
 
-If in doubt, `forget`. Reach for `delete` only when the data itself must be gone.
+On an approval-gated slot, `forget` doesn't remove anything yet: it replies "Proposed for removal, awaiting approval" and the value stays current until someone approves it with `confirm_change`.
+
+More in [Memory tools](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/memory) and [Compliance (GDPR)](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/compliance-gdpr).

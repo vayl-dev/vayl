@@ -1,15 +1,27 @@
 ---
-description: Create, scope, and revoke principals.
+description: Create, scope, rotate and revoke the keys your team and agents use.
 icon: rectangle-terminal
 ---
 
 # Managing API keys
 
-A **principal** is a user or agent with an API key (`vayl_sk_…`). Only the key's hash is stored, and the key is shown once.
+Keys are created with the `create_principal` tool, which needs `admin`:
 
-* **Create** — `create_principal(name, role, scopes)` returns the key (copy it now).
-* **Scope** — pass `scopes="cust_1,cust_2"` to confine a key to those memory spaces.
-* **List** — `list_principals()` shows principals and roles, never keys.
-* **Revoke** — `revoke_principal(id)` disables a key immediately; `erase=True` hard-deletes the record.
+```
+create_principal(name, role="member", kind="agent", scopes="", tenant="")
+```
 
-Bootstrap the first admin over local stdio (`vayl-mcp` → `create_principal("you", role="admin")`), then issue keys to your team.
+* The key (`vayl_sk_…`) is shown **once**. Vayl stores only its hash, so copy it then.
+* `scopes` is a comma-separated list of `user_id` values the key may reach; empty means all.
+* `tenant` defaults to your own tenant. Only the deployment operator can create keys in another tenant.
+* The Community edition allows 3 principals; `license_status` shows the limit.
+
+**The first admin.** A new database has no principals. Create one over local stdio (`vayl-mcp` runs as the local admin), or with Docker:
+
+```bash
+docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+```
+
+**Rotate** a key by creating a new principal and revoking the old one. `revoke_principal(principal_id)` stops the key on its next request; `erase=True` also deletes the record. `list_principals` shows your tenant's principals, never their keys.
+
+More in [Administration tools](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/administration).

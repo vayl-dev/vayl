@@ -4,6 +4,7 @@
 
 ## 2026
 
+* [v0.7.0 — Tenant isolation and correctness](2026/v0.7.0-tenant-isolation-and-correctness.md)
 * [v0.6.0 — Approval gate, HTTP fix and correct defaults](2026/v0.6.0-approval-gate-http-fix-and-correct-defaults.md)
 * [v0.5.1 — Hardening patch](2026/v0.5.1-hardening-patch.md)
 * [v0.5.0 — Performance, migrations and request IDs](2026/v0.5.0-performance-migrations-and-request-ids.md)

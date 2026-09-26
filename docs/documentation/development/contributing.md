@@ -81,10 +81,12 @@ Common prefixes are `feat`, `fix`, `perf`, `refactor`, `docs`, `ci`, `chore` and
 
 ## Contributing to the docs
 
-The docs site at [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) is edited in GitBook and synced to the `docs/` folder of the repository:
+The docs site at [vayl.gitbook.io/vayl-docs](https://vayl.gitbook.io/vayl-docs) is edited in GitBook and synced to the `docs/` folder of the repository. Each section of the site has its own folder: `docs/documentation/` (these pages), `docs/home/`, `docs/api-reference/`, `docs/changelog/` and `docs/help-center/`, and `docs/gitbook-docs.yaml` describes the site's structure.
 
 * **In GitBook.** GitBook Git Sync pushes edits to the `docs-sync` branch, because `main` is protected. A workflow then opens (or updates) a `docs-sync` → `main` pull request, so docs go through CI and review like code.
-* **By pull request.** You can also edit the Markdown under `docs/` and open a pull request, or start with a Markdown draft of a new page in a pull request.
+* **By pull request.** You can also edit the Markdown under `docs/<section>/` and open a pull request against `docs-sync`, or start with a Markdown draft of a new page in a pull request.
+
+The API Reference pages are generated from `openapi/vayl-server.yaml` at the repository root, not from Markdown. Change the spec to change them.
 
 {% hint style="warning" %}
 Merge `docs-sync` pull requests with **Create a merge commit**, not squash or rebase. A squash leaves `docs-sync` behind `main`, and its old changes reappear in every later sync pull request.

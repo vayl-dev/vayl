@@ -29,7 +29,8 @@ What changed in each Vayl release, newest first. Upgrade notes are on each relea
 
 | Release              | Date        | Highlights                                                                                                             |
 | -------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **v0.6.0** (current) | 26 Sep 2026 | `approve` capability for gated changes, HTTP transport fix, embeddings follow `OPENAI_API_KEY`, strict on/off settings |
+| **v0.7.0** (current) | 27 Sep 2026 | Tenant isolation for policies, the graph, decisions, receipts, audit and principals; audit fixes |
+| v0.6.0 | 26 Sep 2026 | `approve` capability for gated changes, HTTP transport fix, embeddings follow `OPENAI_API_KEY`, strict on/off settings |
 | v0.5.1               | 26 Sep 2026 | Atomic SQLite migrations, `VAYL_DECRYPT_CACHE`                                                                         |
 | v0.5.0               | 26 Sep 2026 | Faster tool calls, versioned migrations, request IDs                                                                   |
 | v0.4.0               | 26 Sep 2026 | Framework adapters, tenant partitioning, fail-closed erasure                                                           |

@@ -1,18 +1,23 @@
 ---
-description: Roles grant capabilities; scopes confine a principal to memory spaces.
+description: Roles grant capabilities; scopes and tenants decide whose memory a key can reach.
 icon: user-shield
 ---
 
 # How do roles and permissions work?
 
-On `vayl-server`, each **principal** (an API key) has a **role** that grants a set of **capabilities**, and every tool checks the capability it needs (fail-closed).
+Every key belongs to a principal with a role. The role grants capabilities, and every tool checks its capability before running. Denials are audited.
 
-| Role    | Capabilities                       |
-| ------- | ---------------------------------- |
-| admin   | read, write, delete, verify, admin |
-| member  | read, write, delete, verify        |
-| agent   | read, write, verify                |
-| viewer  | read, verify                       |
-| auditor | verify                             |
+| Role | read | write | delete | verify | approve | admin |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: |
+| `admin` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `member` | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `agent` | ✓ | ✓ | | ✓ | | |
+| `viewer` | ✓ | | | ✓ | | |
+| `auditor` | | | | ✓ | | |
 
-Capabilities answer _"may this caller read?"_. **Scopes** answer _"whose memory?"_ — assign a principal `scopes` (a list of `user_id`s) to confine it to specific memory spaces. Without scopes, a key can reach any space, so always scope keys in a multi-tenant deployment.
+* **`approve`** confirms or rejects a change on an approval-gated slot. Agents don't have it, so an agent can't approve its own proposal.
+* **Scopes** limit which `user_id` values a key can reach. An empty scope list means all of them; admins are never scoped.
+* **Tenants** are hard partitions for a shared deployment. Every query is filtered by the key's tenant. Only the **deployment operator**, an admin of the `default` tenant, acts across tenants.
+* **Local stdio** (`vayl-mcp`) runs as the local admin unless `VAYL_AUTH_REQUIRED=on`.
+
+Full reference, including which tool needs which capability: [Authentication and access](https://vayl.gitbook.io/vayl-docs/documentation/core-concepts/authentication-and-access).

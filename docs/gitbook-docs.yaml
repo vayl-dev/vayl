@@ -28,7 +28,7 @@ site:
           path: documentation
           default: true
           content:
-            directory: ./docs
+            directory: ./documentation
     - type: section
       key: section-3
       title: API Reference
