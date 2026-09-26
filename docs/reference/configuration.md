@@ -113,11 +113,16 @@ On `vayl-server`, every line also carries the request ID (see [Deploying vayl-se
 
 ## Performance
 
-| Variable            | Purpose                                                                                   | Default |
-| ------------------- | ----------------------------------------------------------------------------------------- | ------- |
-| `VAYL_VECTOR_CACHE` | decoded embeddings kept in memory for recall ranking (about 6 KB each at 1536 dimensions) | `8192`  |
+| Variable             | Purpose                                                                                    | Default |
+| -------------------- | ------------------------------------------------------------------------------------------ | ------- |
+| `VAYL_VECTOR_CACHE`  | decoded embeddings kept in memory for recall ranking (about 6 KB each at 1536 dimensions)  | `8192`  |
+| `VAYL_DECRYPT_CACHE` | cache decrypted data between calls; `off` keeps plaintext in memory only while a call runs | on      |
 
-Every recall ranks every fact in the space. Keep this above the number of embedded facts in your largest space: facts beyond it are decrypted again on every recall. The cache is cleared on every hard delete (`forget`, erasure, retention expiry), so erased data doesn't stay in memory.
+Every recall ranks every fact in the space. Keep `VAYL_VECTOR_CACHE` above the number of embedded facts in your largest space: facts beyond it are decrypted again on every recall. `0` turns the vector cache off. Both caches are cleared on every hard delete (`forget`, erasure, retention expiry), so erased data doesn't stay in memory.
+
+{% hint style="info" %}
+`VAYL_DECRYPT_CACHE=off` is for deployments that want the least possible plaintext in process memory. It costs speed: at 1,000 facts, `remember` goes from 23 to 122 ms and `recall` from 59 to 273 ms. Encryption at rest doesn't protect against someone who can read the running process's memory in either mode.
+{% endhint %}
 
 ## Next steps
 
