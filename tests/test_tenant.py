@@ -4,6 +4,7 @@ default fallback, the Principal round-trip, and the request-path binding via set
 import pytest
 
 from vayl.memory.reconcile import Statement, Status
+from vayl.storage import store as store_mod
 from vayl.storage.store import Store, bind_tenant, reset_tenant
 
 
@@ -12,6 +13,8 @@ def _plaintext(monkeypatch):
     monkeypatch.setenv("VAYL_ENCRYPT", "off")
     monkeypatch.setenv("VAYL_SIGN", "off")
     monkeypatch.delenv("VAYL_DATABASE_URL", raising=False)
+    # save() embeds new facts; without this stub the suite called a real (local) embedder
+    monkeypatch.setattr(store_mod, "_embed", lambda texts: [[0.0] for _ in texts])
 
 
 def _put(st, tenant, user, subj, val):
