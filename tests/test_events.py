@@ -253,7 +253,7 @@ def test_extraction_retries_a_malformed_json_roll(monkeypatch):
             raise ValueError("model returned no JSON object")   # what _first_json raises
         return {"facts": [{"subject": "db", "value": "postgres", "action": "ADD"}]}
 
-    monkeypatch.setattr(L, "_provider", lambda: "openai")
+    monkeypatch.setattr("vayl.memory.llm_client._provider", lambda: "openai")
     monkeypatch.setattr(L, "_call_openai", flaky)
     out = L.llm_extract_classify("we use postgres", [])
     assert len(calls) == 3                       # two bad rolls, third succeeded
@@ -263,7 +263,7 @@ def test_extraction_retries_a_malformed_json_roll(monkeypatch):
 def test_extraction_gives_up_after_the_retry_budget(monkeypatch):
     """Persistent failure still raises — a retry loop must not mask a genuinely broken endpoint."""
     from vayl.memory import llm_memory as L
-    monkeypatch.setattr(L, "_provider", lambda: "openai")
+    monkeypatch.setattr("vayl.memory.llm_client._provider", lambda: "openai")
     monkeypatch.setattr(L, "_EXTRACT_JSON_RETRIES", 2)
     monkeypatch.setattr(L, "_call_openai",
                         lambda user: (_ for _ in ()).throw(ValueError("always bad")))

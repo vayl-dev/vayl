@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from vayl.memory import llm_memory as L
+from vayl.memory import llm_client as L
 
 
 def _req():

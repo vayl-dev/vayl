@@ -90,7 +90,7 @@ def _capture_qa_model(monkeypatch):
     def fake_http(req, timeout=30):
         cap["model"] = json.loads(req.data.decode())["model"]
         return {"choices": [{"message": {"content": "ok"}}]}
-    monkeypatch.setattr(llm_memory, "_http_json", fake_http)
+    monkeypatch.setattr("vayl.memory.llm_client._http_json", fake_http)
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-x")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -114,7 +114,7 @@ def test_read_defaults_to_the_extraction_model(monkeypatch):
 
 def test_recall_skips_query_embedding_for_a_small_memory(monkeypatch):
     calls = {"embed": 0}
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: calls.__setitem__("embed", calls["embed"] + 1) or [[0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: calls.__setitem__("embed", calls["embed"] + 1) or [[0.0] for _ in texts])
     monkeypatch.setattr(llm_memory, "_qa", lambda ctx, q: ctx)
     m = LLMMemory()
     for i in range(20):
@@ -125,7 +125,7 @@ def test_recall_skips_query_embedding_for_a_small_memory(monkeypatch):
 
 def test_recall_embeds_to_bound_a_large_memory(monkeypatch):
     calls = {"embed": 0}
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: calls.__setitem__("embed", calls["embed"] + 1) or [[0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: calls.__setitem__("embed", calls["embed"] + 1) or [[0.0] for _ in texts])
     monkeypatch.setattr(llm_memory, "_qa", lambda ctx, q: ctx)
     monkeypatch.setattr(llm_memory, "_RECALL_CONTEXT", 10)
     m = LLMMemory()
@@ -300,7 +300,7 @@ class _NsGraph:
 
 
 def test_graph_query_is_scoped_to_the_tenant(monkeypatch):
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[0.0] for _ in texts])
     monkeypatch.setattr(llm_memory, "_qa", lambda ctx, q: ctx)   # surface the retrieved context
     g = _NsGraph()
     g.seed("Bob", "WORKS_AT", "Acme", "tenantA\x1f\x1f")

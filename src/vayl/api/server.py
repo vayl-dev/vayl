@@ -34,7 +34,9 @@ from vayl.config import env_int
 
 # Coarse first-party backstops (no dependency). A real reverse proxy / WAF is still recommended.
 _MAX_BODY = env_int("VAYL_MAX_BODY", 1 << 20)    # 1 MiB
-_RATE_PER_MIN = env_int("VAYL_RATE_PER_MIN", 120)   # per client IP; 0 disables
+# Per client IP, in memory and PER PROCESS: N server processes allow N x this. A global limit belongs at
+# the proxy/ingress, which sees all traffic (DEPLOY.md, "Rate limiting"). 0 disables.
+_RATE_PER_MIN = env_int("VAYL_RATE_PER_MIN", 120)
 # Behind a reverse proxy the socket peer is the proxy, so per-IP limiting collapses to one bucket.
 # Set this to the number of TRUSTED proxy hops in front of Vayl to read the real client from the
 # right end of X-Forwarded-For; 0 (default) trusts only the socket peer (correct when exposed direct).

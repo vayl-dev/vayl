@@ -11,13 +11,13 @@ import itertools
 import json
 import logging
 import os
-import random
 import re
 import time
 import urllib.error
 import urllib.request
 
 from vayl.config import env_float, env_int
+from vayl.memory import llm_client, retrieval
 from vayl.memory.reconcile import (
     HYPOTHETICAL_MARKERS,
     RETRACT_MARKERS,
@@ -249,94 +249,6 @@ def _first_json(raw):
             return salvaged
         raise
 
-# Connection pool for the LLM/embedding endpoint. Every call previously opened a fresh TCP+TLS
-# connection — a 50-200ms handshake per request, which dominates recall latency (the embedding
-# round-trip was ~95% of a 1s recall). A pooled, keep-alive sender reuses the connection. urllib3 is
-# OPTIONAL: without it we fall back to urllib and lose only the pooling, so the core install keeps
-# its two-dependency, minimal-audit-surface property. `pip install vayl-mcp[pooled]` turns it on.
-try:
-    import urllib3 as _urllib3
-    _POOL = _urllib3.PoolManager(
-        maxsize=env_int("VAYL_HTTP_POOL", 8),
-        retries=False,                       # we do our own 429/5xx backoff below
-        headers={"User-Agent": "vayl/0.1"})
-except Exception:                            # not installed → transparent urllib fallback
-    _urllib3 = None  # type: ignore[assignment]
-    _POOL = None  # type: ignore[assignment]
-
-
-def _retry_after(headers, i):
-    wait = headers.get("retry-after") if headers else None
-    return float(wait) if wait else min(2 ** i, 30) + random.random()
-
-
-def _http_json(req, timeout, retries=10):
-    for i in range(retries):
-        try:
-            if _POOL is not None:
-                r = _POOL.request(req.get_method(), req.full_url, body=req.data,
-                                  headers=dict(req.headers), timeout=timeout)
-                if r.status in (429, 500, 502, 503) and i < retries - 1:
-                    time.sleep(_retry_after(r.headers, i)); continue
-                if r.status >= 400:
-                    raise urllib.error.HTTPError(req.full_url, r.status,
-                                                 r.data[:200].decode("utf-8", "replace"),
-                                                 r.headers, None)
-                return json.loads(r.data)
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read())
-        except urllib.error.HTTPError as e:
-            if e.code in (429, 500, 502, 503) and i < retries - 1:
-                time.sleep(_retry_after(e.headers, i)); continue
-            raise
-        except (urllib.error.URLError, TimeoutError):  # reset / transient / slow-local-model timeout
-            if i < retries - 1:
-                time.sleep(min(2 ** i, 20) + random.random()); continue
-            raise
-        except Exception as exc:               # urllib3 transport errors (pool-specific)
-            if _POOL is not None and _urllib3 is not None \
-                    and isinstance(exc, _urllib3.exceptions.HTTPError) and i < retries - 1:
-                time.sleep(min(2 ** i, 20) + random.random()); continue
-            raise
-
-_PROVIDERS = ("anthropic", "openai", "groq")
-
-
-def _provider():
-    """Which LLM backend to use. Explicit LLM_PROVIDER wins; else infer from whichever key is
-    present; else default to the OpenAI-compatible path — which, with no cloud key, points at a
-    LOCAL Ollama (see _openai_config). So out of the box Vayl runs locally with NO data egress."""
-    p = os.environ.get("LLM_PROVIDER", "").strip().lower()
-    if p:
-        # An unknown value used to fall through to Anthropic for extraction (and to the
-        # OpenAI-compatible path for answers) — a typo could send data to a provider nobody chose.
-        if p not in _PROVIDERS:
-            raise ValueError(f"LLM_PROVIDER must be one of {', '.join(_PROVIDERS)}, got {p!r}. For Ollama "
-                             "or any OpenAI-compatible endpoint, use 'openai' with OPENAI_BASE_URL.")
-        return p
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic"
-    if os.environ.get("GROQ_API_KEY"):
-        return "groq"
-    return "openai"
-
-
-def _openai_config():
-    """Resolve (base_url, key, model, is_local) for the OpenAI-compatible path. With no
-    OPENAI_BASE_URL and no OPENAI_API_KEY, defaults to local Ollama — nothing leaves the machine."""
-    base = os.environ.get("OPENAI_BASE_URL")
-    key = os.environ.get("OPENAI_API_KEY")
-    if not base:
-        base = "https://api.openai.com/v1" if key else "http://localhost:11434/v1"
-    base = base.rstrip("/")
-    local = ("localhost" in base) or ("127.0.0.1" in base)
-    key = key or ("ollama" if local else "none")
-    # Default to gpt-5-mini: 0% silently-wrong on the messy real-world reconciliation suite
-    # (benchmarks/messy_eval.py), ~$0.25/$2 per 1M tok. gpt-5-nano is ~5x cheaper but flags instead
-    # of superseding on messy corrections (23% silently-wrong there) — only use it for clean inputs.
-    model = os.environ.get("OPENAI_MODEL", "qwen2.5:3b" if local else "gpt-5-mini")
-    return base, key, model, local
-
 
 def _call_anthropic(user):
     key = os.environ["ANTHROPIC_API_KEY"]
@@ -347,7 +259,7 @@ def _call_anthropic(user):
     }).encode()
     req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload,
         headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
-    data = _http_json(req, timeout=30)
+    data = llm_client._http_json(req, timeout=30)
     return _first_json("{" + data["content"][0]["text"])
 
 def _call_groq(user):
@@ -363,21 +275,8 @@ def _call_groq(user):
     req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=payload,
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
                  "User-Agent": "vayl-eval/1.0"})   # Cloudflare 403s the default urllib UA
-    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
+    data = llm_client._http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
     return _first_json(data["choices"][0]["message"]["content"])
-
-def _openai_gen_params(model, default_max):
-    """Chat-completions generation params, adapted per model family. OpenAI reasoning models
-    (gpt-5*, o-series) take `max_completion_tokens` (not `max_tokens`), allow only the default
-    temperature, and spend tokens on internal reasoning — 'minimal' keeps extraction/QA fast/cheap,
-    and the budget must cover reasoning + output. gpt-4o, local, and other OpenAI-compatible
-    endpoints keep the classic `max_tokens` + temperature. Override via OPENAI_MAX_TOKENS /
-    OPENAI_REASONING_EFFORT / OPENAI_TEMP."""
-    if model.startswith("gpt-5") or (model[:1] == "o" and model[1:2].isdigit()):
-        return {"max_completion_tokens": env_int("OPENAI_MAX_TOKENS", max(default_max, 2000)),
-                "reasoning_effort": os.environ.get("OPENAI_REASONING_EFFORT", "minimal")}
-    return {"max_tokens": env_int("OPENAI_MAX_TOKENS", default_max),
-            "temperature": env_float("OPENAI_TEMP", 0.0)}
 
 
 def _call_openai(user):
@@ -386,132 +285,23 @@ def _call_openai(user):
     #   OpenRouter: OPENAI_BASE_URL=https://openrouter.ai/api/v1  OPENAI_MODEL=meta-llama/llama-3.3-70b-instruct:free
     #   Cerebras  : OPENAI_BASE_URL=https://api.cerebras.ai/v1    OPENAI_MODEL=llama-3.3-70b
     #   Ollama    : OPENAI_BASE_URL=http://localhost:11434/v1     OPENAI_MODEL=llama3.1  OPENAI_API_KEY=ollama
-    base, key, model, _local = _openai_config()
+    base, key, model, _local = llm_client._openai_config()
     body = {
         "model": model,
         "messages": [{"role": "system",
                       "content": os.environ.get("OPENAI_SYSTEM_PREFIX", "") + SYS
                                  + SLOT_SCHEMA.prompt_fragment()},
                      {"role": "user", "content": user}],
-        **_openai_gen_params(model, 400),
+        **llm_client._openai_gen_params(model, 400),
     }
     if os.environ.get("OPENAI_JSON", "on") != "off":     # some local models don't support json mode
         body["response_format"] = {"type": "json_object"}
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
                  "User-Agent": "vayl/0.1"})
-    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
+    data = llm_client._http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
     return _first_json(data["choices"][0]["message"]["content"])
 
-def _embed(texts):
-    """Embed a batch of texts. Defaults to a local Ollama embedder (free); overridable via env.
-    Any OpenAI-compatible /embeddings endpoint works (OpenAI text-embedding-3-small, etc.)."""
-    base = (os.environ.get("EMBED_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-            or "http://localhost:11434/v1").rstrip("/")
-    key = os.environ.get("EMBED_API_KEY") or os.environ.get("OPENAI_API_KEY", "ollama")
-    model = os.environ.get("EMBED_MODEL", "nomic-embed-text")
-    payload = json.dumps({"model": model, "input": list(texts)}).encode()
-    req = urllib.request.Request(base + "/embeddings", data=payload,
-        headers={"Authorization": f"Bearer {key}", "content-type": "application/json", "User-Agent": "vayl/0.1"})
-    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
-    return [row["embedding"] for row in data["data"]]
-
-def _cos(a, b):
-    import math
-    dot = sum(x * y for x, y in zip(a, b, strict=True))   # mixed embedding dims must not rank silently
-    na = math.sqrt(sum(x * x for x in a)); nb = math.sqrt(sum(y * y for y in b))
-    return dot / (na * nb) if na and nb else 0.0
-
-_STOP = {"the", "a", "an", "we", "our", "do", "does", "did", "use", "used", "using", "is", "are",
-         "what", "which", "how", "who", "when", "where", "for", "of", "to", "on", "in", "at", "and",
-         "or", "with", "you", "your", "i", "me", "my", "it", "that", "this", "have", "has", "was",
-         "were", "be", "been", "now", "still", "currently", "us"}
-
-
-def _tokens(text):
-    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) > 1 and w not in _STOP}
-
-
-# Query embeddings are cached because the call is a network round-trip and the same question
-# recurs constantly — an agent asking "what plan is this customer on?" for every request pays a
-# fixed ~1s each time otherwise. Measured on a benchmark run: median retrieval 1055.5ms with a
-# max of 1056.9ms, a 1.4ms spread across every question. Compute that scales with data does not
-# look like that; a fixed network cost does. Bounded so a long-lived process cannot grow it
-# without limit, and keyed by the exact text since a paraphrase is a different vector.
-_QEMB_CACHE: dict[str, list[float]] = {}
-_QEMB_CACHE_MAX = env_int("VAYL_QUERY_CACHE", 512)
-
-
-def _embed_query(question):
-    """Embed a question, reusing a recent identical one. Returns None if the embedder is down."""
-    if _QEMB_CACHE_MAX <= 0:
-        return _embed([question])[0]
-    hit = _QEMB_CACHE.get(question)
-    if hit is not None:
-        return hit
-    vec = _embed([question])[0]
-    if len(_QEMB_CACHE) >= _QEMB_CACHE_MAX:
-        _QEMB_CACHE.pop(next(iter(_QEMB_CACHE)), None)   # FIFO: oldest out
-    _QEMB_CACHE[question] = vec
-    return vec
-
-
-def embed_retrieve(question, statements, k=12):
-    """HYBRID top-k retrieval: fuse a semantic ranking (embedding cosine) and a lexical ranking
-    (keyword overlap) via reciprocal rank fusion. This surfaces exact-term matches the embedding
-    might rank lower, and still works when embeddings are missing (lexical carries it). Falls back
-    to all facts when memory is small, or to first-k when there's no signal at all."""
-    if len(statements) <= k:
-        return statements
-
-    qtok = _tokens(question)
-
-    # semantic ranking
-    sem_rank = {}
-    embedded = [s for s in statements if getattr(s, "_emb", None)]
-    if embedded:
-        try:
-            qv = _embed_query(question)
-            for rank, s in enumerate(sorted(embedded, key=lambda s: _cos(qv, s._emb), reverse=True)):
-                sem_rank[id(s)] = rank
-        except Exception as e:
-            log.warning("semantic ranking unavailable (%s); recall uses lexical ranking", e)
-            sem_rank = {}   # embedder down / mismatched embedding dims → lexical carries the query
-
-    # lexical ranking
-    scored = [(s, len(qtok & _tokens(f"{s.subject} {s.value} {getattr(s, 'raw', '')}"))) for s in statements]
-    lex_rank = {}
-    for rank, (s, _sc) in enumerate(sorted([p for p in scored if p[1] > 0], key=lambda p: p[1], reverse=True)):
-        lex_rank[id(s)] = rank
-
-    if not sem_rank and not lex_rank:
-        return statements[:k]   # no signal → bounded fallback
-
-    RRF = 60   # reciprocal-rank-fusion constant; larger = flatter contribution from tail ranks
-
-    def fused(s):
-        score = 0.0
-        if id(s) in sem_rank:
-            score += 1.0 / (RRF + sem_rank[id(s)])
-        if id(s) in lex_rank:
-            score += 1.0 / (RRF + lex_rank[id(s)])
-        return score
-
-    candidates = [s for s in statements if id(s) in sem_rank or id(s) in lex_rank]
-    return sorted(candidates, key=fused, reverse=True)[:k]
-
-def _rank_triples(question, triples, k=15):
-    """Relevance-rank graph edges to the question and keep top-k — bounds the LLM context even
-    when a high-degree hub returns a big neighborhood. Degrades to first-k if embedding fails."""
-    if len(triples) <= k:
-        return triples
-    try:
-        vecs = _embed([question] + [f"{h} {rel} {t}" for h, rel, t in triples])
-        qv = vecs[0]
-        ranked = sorted(zip(triples, vecs[1:], strict=True), key=lambda x: _cos(qv, x[1]), reverse=True)
-        return [t for t, _ in ranked[:k]]
-    except Exception:
-        return triples[:k]
 
 def _qa(context, question):
     """Read layer: answer a question (incl. multi-hop) over the stored facts. Free text, not JSON.
@@ -527,16 +317,16 @@ def _qa(context, question):
               "If the facts don't support an answer, say you don't know. Answer in one short sentence.")
     user = f"FACTS:\n{context}\n\nQUESTION: {question}"
     system = os.environ.get("OPENAI_SYSTEM_PREFIX", "") + system   # e.g. "/no_think" for reasoning models
-    provider = _provider()
+    provider = llm_client._provider()
     if provider == "anthropic":
         key = os.environ["ANTHROPIC_API_KEY"]
         payload = json.dumps({"model": read_model or os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
             "max_tokens": 160, "system": system, "messages": [{"role": "user", "content": user}]}).encode()
         req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=payload,
             headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
-        return _http_json(req, 30)["content"][0]["text"].strip()
+        return llm_client._http_json(req, 30)["content"][0]["text"].strip()
     if provider == "openai":   # local Ollama by default; respects OPENAI_BASE_URL
-        base, key, model, _local = _openai_config()
+        base, key, model, _local = llm_client._openai_config()
         model = read_model or model
         url = base + "/chat/completions"
     else:
@@ -544,10 +334,10 @@ def _qa(context, question):
         model = read_model or os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     payload = json.dumps({"model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        **_openai_gen_params(model, 300)}).encode()
+        **llm_client._openai_gen_params(model, 300)}).encode()
     hdr = {"Authorization": f"Bearer {key}", "content-type": "application/json", "User-Agent": "vayl/0.1"}
     req = urllib.request.Request(url, data=payload, headers=hdr)
-    return _http_json(req, 30)["choices"][0]["message"]["content"].strip()
+    return llm_client._http_json(req, 30)["choices"][0]["message"]["content"].strip()
 
 _EXTRACT_JSON_RETRIES = env_int("VAYL_EXTRACT_RETRIES", 2)
 
@@ -571,7 +361,7 @@ def _norm_utterance(text):
 def llm_extract_classify(text, active):
     facts = [{"id": s.id, "subject": s.subject, "value": s.value, "scope": s.scope} for s in active]
     user = f'CURRENT active facts:\n{json.dumps(facts)}\n\nNEW statement:\n"{text}"\n\nJSON:'
-    call = {"groq": _call_groq, "openai": _call_openai}.get(_provider(), _call_anthropic)
+    call = {"groq": _call_groq, "openai": _call_openai}.get(llm_client._provider(), _call_anthropic)
     # A model that returns malformed JSON is a re-roll away from valid JSON — the call is stochastic,
     # so retrying the SAME request usually succeeds. `_http_json` already retries transport errors
     # (429/5xx), but a parse failure happens on the returned body and was not retried at all, so one
@@ -770,8 +560,8 @@ class LLMMemory:
             try:
                 self.graph.retire_subject_edges(str(subject), ns=self.ns)
             except Exception:
-                log.warning("graph: could not retire edges for %r; the graph may serve a stale edge "
-                            "until it is rebuilt", subject, exc_info=True)
+                log.warning("graph: could not retire a subject's edges; the graph may serve a stale "
+                            "edge until it is rebuilt", exc_info=True)
 
     def _gwrite(self, o, act):
         """Mirror a fact into the Neo4j projection as an entity triple, if a graph is attached."""
@@ -820,7 +610,7 @@ class LLMMemory:
         # `source` is stamped on every fact created — belief provenance. Show the extractor only the
         # top-k RELEVANT active facts (all of them when the space is small) so write cost stays
         # bounded as memory grows; _apply still reconciles against the full active set.
-        candidates = embed_retrieve(text, self.active(), k=_RECONCILE_CONTEXT)
+        candidates = retrieval.embed_retrieve(text, self.active(), k=_RECONCILE_CONTEXT)
         return [self._apply(o, text, source) for o in llm_extract_classify(text, candidates)]
 
     def forget(self, text, source=""):
@@ -828,7 +618,7 @@ class LLMMemory:
         extractor's own action guess (which might come back ADD/SUPERSEDE). We reuse the extractor
         only to resolve WHICH fact is meant, then force removal at high confidence."""
         out = []
-        for o in llm_extract_classify(text, embed_retrieve(text, self.active(), k=_RECONCILE_CONTEXT)):
+        for o in llm_extract_classify(text, retrieval.embed_retrieve(text, self.active(), k=_RECONCILE_CONTEXT)):
             o["action"] = "RETRACT"
             o["confidence"] = max(float(o.get("confidence") or 0), 0.9)
             out.append(self._apply(o, text, source))
@@ -1112,7 +902,7 @@ class LLMMemory:
         `critical_categories` overrides VAYL_CRITICAL_CATEGORIES for this call. Facts in those
         categories skip ranking and are always present in the context — for domains where a fact
         being ranked out is a safety failure rather than a quality one."""
-        ret = retrieve or embed_retrieve
+        ret = retrieve or retrieval.embed_retrieve
         k = k if k is not None else _RECALL_CONTEXT
         # Vectors are left on disk by load() because they are large and reconciliation never reads
         # them. A ranking pass does — and only happens when the space exceeds the cap — so pull them
@@ -1280,7 +1070,7 @@ class LLMMemory:
         ns = self.ns   # scope every graph read to this (user/agent/run) tenant — no cross-tenant leak
         # Primary: in-DB vector index over edge embeddings — sub-second, scales, no hub cap.
         try:
-            triples = self.graph.vector_search(_embed([question])[0], k, ns=ns)
+            triples = self.graph.vector_search(llm_client._embed([question])[0], k, ns=ns)
             if triples:
                 context = "; ".join(f"{h} {rel} {t}" for h, rel, t in triples)
                 return _qa(context, question), ["(vector)"], triples
@@ -1294,6 +1084,6 @@ class LLMMemory:
             ql = question.lower(); seeds = [n for n in names if n.lower() in ql]
         edges = (self.graph.neighborhood(seeds, hops=hops, limit=800, ns=ns) if seeds
                  else self.graph.all_edges(limit=800, ns=ns))
-        triples = _rank_triples(question, [(h, rel, t) for h, rel, t, vv in edges if vv], k)
+        triples = retrieval._rank_triples(question, [(h, rel, t) for h, rel, t, vv in edges if vv], k)
         context = "; ".join(f"{h} {rel} {t}" for h, rel, t in triples) or "(no facts)"
         return _qa(context, question), seeds, triples

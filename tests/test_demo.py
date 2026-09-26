@@ -2,7 +2,23 @@
 no model, no network — so a first-time user's 30-second impression can't break."""
 import sys
 
+import pytest
+
 from vayl import demo
+
+
+@pytest.fixture(autouse=True)
+def _no_local_llm(monkeypatch):
+    # the offline demo ends by probing for a local LLM; pin the answer so the test never touches the network
+    monkeypatch.setattr(demo, "_llm_reachable", lambda timeout=1.0: False)
+
+
+def test_demo_suggests_live_mode_only_when_a_local_llm_is_reachable(monkeypatch, capsys):
+    demo.run(live=False)
+    assert "--live" not in capsys.readouterr().out
+    monkeypatch.setattr(demo, "_llm_reachable", lambda timeout=1.0: True)
+    demo.run(live=False)
+    assert "vayl-demo --live" in capsys.readouterr().out
 
 
 def test_demo_offline_reconciles_and_keeps_history(capsys):

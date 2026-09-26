@@ -22,7 +22,8 @@ import logging
 import os
 import time
 
-from vayl.memory.llm_memory import LLMMemory, _embed
+from vayl.memory.llm_client import _embed
+from vayl.memory.llm_memory import LLMMemory
 from vayl.memory.reconcile import Statement, Status
 from vayl.security import crypto
 from vayl.storage.db import Database
@@ -245,7 +246,7 @@ class Store:
                 for s, v in zip(need, _embed([_embed_text(s) for s in need]), strict=True):
                     s._emb = v
             except Exception as e:
-                log.warning("embedding unavailable (%s); recall degrades to lexical ranking", e)
+                log.warning("embedding unavailable (%s); recall degrades to lexical ranking", type(e).__name__)
         to_insert = [s for s in m.statements if s.id not in loaded]
         to_update = [s for s in m.statements if s.id in loaded and (s.status.value, s.value) != loaded[s.id]]
         with self.db.transaction():   # inserts + updates land atomically, or not at all

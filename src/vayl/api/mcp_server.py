@@ -21,6 +21,7 @@ import os
 import secrets
 import sys
 import time
+import traceback
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -230,7 +231,13 @@ def _guard(tool, fn, cap=None, space=None):
         # The client gets an opaque reference; the full detail goes to the server log + metrics.
         err = e
         ref = secrets.token_hex(4)
-        log.error("[vayl %s] %s: %s: %s", ref, tool, type(e).__name__, e, exc_info=True)
+        # The exception TEXT can carry memory content (an LLM/HTTP error often echoes the prompt), and
+        # logs usually leave the machine in plaintext, beyond the reach of erasure. So the log gets the
+        # ref, the type and where it happened; the text goes to DEBUG and the encrypted metrics store.
+        tb = traceback.extract_tb(e.__traceback__)
+        where = f" at {os.path.basename(tb[-1].filename)}:{tb[-1].lineno} in {tb[-1].name}" if tb else ""
+        log.error("[vayl %s] %s: %s%s", ref, tool, type(e).__name__, where)
+        log.debug("[vayl %s] %s: full detail", ref, tool, exc_info=True)
         return (f"Vayl couldn't complete that (ref {ref}). Retry if it was a transient blip; "
                 "otherwise the full detail is in the server logs under that reference.")
     finally:
@@ -929,7 +936,13 @@ def stats() -> str:
         if errors:
             lines.append("")
             lines.append("Recent errors (most recent first):")
-            lines += [f"  {e['tool']}: {e['type']}: {e['msg']}" for e in errors]
+            # Error text can embed memory content from ANY tenant, and metrics are deployment-wide —
+            # every role holds VERIFY, so only an admin may read the text.
+            if _current_principal().can(C.ADMIN):
+                lines += [f"  {e['tool']}: {e['type']}: {e['msg']}" for e in errors]
+            else:
+                lines += [f"  {e['tool']}: {e['type']}" for e in errors]
+                lines.append("  (error details are visible to admins only)")
         return "\n".join(lines)
     return _guard("stats", go, cap=C.VERIFY)
 
@@ -940,7 +953,8 @@ def health() -> str:
     LLM, and graph (if enabled). Run this to diagnose setup before relying on memory; it makes
     one small LLM/embed call, so it costs a few tokens."""
     def go():
-        from vayl.memory.llm_memory import _embed, llm_extract_classify
+        from vayl.memory.llm_client import _embed
+        from vayl.memory.llm_memory import llm_extract_classify
         report = [f"config: LLM_PROVIDER={os.environ.get('LLM_PROVIDER', '(unset)')}, "
                   f"model={os.environ.get('OPENAI_MODEL') or os.environ.get('GROQ_MODEL') or '(default)'}",
                   f"license: {_license.edition}" + ("" if _license.valid else f" (rejected: {_license.reason})"),
@@ -981,7 +995,7 @@ def startup():
     """Entry-point setup: logging, then settings that are otherwise read lazily — so a typo fails at
     launch with a clear message instead of on the first tool call."""
     configure_logging()
-    from vayl.memory.llm_memory import _provider
+    from vayl.memory.llm_client import _provider
     _provider()
 
 

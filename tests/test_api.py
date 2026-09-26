@@ -17,10 +17,7 @@ os.environ.setdefault("VAYL_DB", os.path.join(tempfile.mkdtemp(), "vayl.db"))
 from vayl.api import mcp_server  # noqa: E402  # noqa: E402
 from vayl.api import server as srv  # noqa: E402  # noqa: E402
 from vayl.auth.auth import Auth, Principal, Role  # noqa: E402  # noqa: E402
-from vayl.memory.llm_memory import (  # noqa: E402
-    _openai_config,
-    _provider,
-)
+from vayl.memory.llm_client import _openai_config, _provider  # noqa: E402
 
 # ══════════════════════════════════════════════════════════════════
 # from test_server

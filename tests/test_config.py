@@ -4,7 +4,7 @@ Configuration errors must name the setting and fail at startup — never be sile
 import pytest
 
 from vayl.config import env_float, env_int
-from vayl.memory.llm_memory import _provider
+from vayl.memory.llm_client import _provider
 from vayl.security import kms
 
 

@@ -22,7 +22,7 @@ import random
 import re
 from typing import Any
 
-from vayl.memory.llm_memory import _openai_gen_params
+from vayl.memory.llm_client import _openai_gen_params
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.S)
 
