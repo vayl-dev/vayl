@@ -128,6 +128,13 @@ Add to `docker-compose.yml`:
 ```
 (nginx/Traefik/your ingress work the same — proxy `https://vayl.your-domain.com` → `vayl:8080`.)
 
+**Rate limiting.** Vayl has a coarse built-in backstop: `VAYL_RATE_PER_MIN` requests per client IP
+(default 120; `0` disables) and a `VAYL_MAX_BODY` request cap (default 1 MiB). Behind a proxy, set
+`VAYL_TRUSTED_PROXY_HOPS` to the number of trusted hops, or every client shares the proxy's bucket.
+The limit is kept **in memory, per process**: with N `vayl-server` processes the effective ceiling is
+N × `VAYL_RATE_PER_MIN`. For a single global limit, rate-limit at your proxy/ingress — that is the
+layer that sees all traffic.
+
 ## 7. Connect an agent / MCP client
 
 Vayl speaks **MCP over streamable-HTTP** at `/mcp`, Bearer-authenticated. Point any MCP client
@@ -151,6 +158,7 @@ principal's role.
 docker compose --profile postgres up -d
 ```
 Same-space writes serialize across processes via an advisory lock; different spaces run in parallel.
+The built-in rate limit stays per process (see *Rate limiting* above) — enforce a global one at the proxy.
 
 **HashiCorp Vault (key custody off the host):**
 ```bash
