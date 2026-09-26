@@ -102,11 +102,22 @@ Built-in presets give you a domain schema without authoring JSON: `VAYL_SLOT_SCH
 
 ## Logging
 
-| Variable         | Purpose                                                   | Default   |
-| ---------------- | --------------------------------------------------------- | --------- |
-| `VAYL_LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`; logs go to stderr | `WARNING` |
+| Variable          | Purpose                                                           | Default   |
+| ----------------- | ----------------------------------------------------------------- | --------- |
+| `VAYL_LOG_LEVEL`  | `DEBUG`, `INFO`, `WARNING`, or `ERROR`; logs go to stderr         | `WARNING` |
+| `VAYL_LOG_FORMAT` | `text`, or `json` for one JSON object per line (for log shippers) | `text`    |
 
 `ERROR` lines carry a reference, the exception type and the code location — never the exception text, which can contain memory content. That detail is logged only at `DEBUG`, so treat `DEBUG` logs as sensitive.
+
+On `vayl-server`, every line also carries the request ID (see [Deploying vayl-server](../guides/deploying-vayl-server.md), under Logging).
+
+## Performance
+
+| Variable            | Purpose                                                                                   | Default |
+| ------------------- | ----------------------------------------------------------------------------------------- | ------- |
+| `VAYL_VECTOR_CACHE` | decoded embeddings kept in memory for recall ranking (about 6 KB each at 1536 dimensions) | `8192`  |
+
+Every recall ranks every fact in the space. Keep this above the number of embedded facts in your largest space: facts beyond it are decrypted again on every recall. The cache is cleared on every hard delete (`forget`, erasure, retention expiry), so erased data doesn't stay in memory.
 
 ## Next steps
 
