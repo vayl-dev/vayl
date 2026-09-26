@@ -17,6 +17,13 @@ All notable changes to Vayl are documented here. This project adheres to
   (for example, an integration key created as `create_principal("fhir", role="agent")`) or a key with
   `approve`. Other callers are denied, and the denial is audited.
 
+### Fixed
+- **`vayl-server` returned empty responses to every MCP call.** Requests got `200` with an empty body,
+  and the server logged `ASGI callable returned without completing response`. `LimitsMiddleware` reads
+  the request body to enforce the size cap, then replays it. After the replay it answered every
+  further `receive()` with `http.disconnect`, so each streamed (SSE) response took the client for
+  gone and cancelled itself. It now passes later calls to the real `receive()`. A new test runs a real
+  MCP `tools/call` through the full HTTP stack. stdio (`vayl-mcp`) was not affected.
 ### Upgrading
 - Agent keys that called `confirm_change` or `reject_change` are now denied. Approve changes with a
   `member` or `admin` key.
