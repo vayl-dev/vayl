@@ -60,7 +60,7 @@ silently writing plaintext. Running unencrypted requires an explicit `VAYL_ENCRY
   protects a copied DB file, **not** a stolen machine. Pair with OS full-disk encryption.
 - **In memory:** a running process holds decrypted data while it serves a call. By default it also
   caches decrypted short fields and decoded embeddings between calls, which makes calls on large memories
-  several times faster. Every hard delete (`forget`, erasure, retention expiry) clears both caches.
+  several times faster. Every hard delete (`delete`, `delete_all`, retention expiry via `purge_expired`) clears both caches; `forget` is a retraction that keeps history, so it doesn't.
   `VAYL_DECRYPT_CACHE=off` turns them off, so plaintext stays in memory only while a call runs, at the
   cost of speed (at 1,000 facts: `remember` 23 → 122 ms, `recall` 59 → 273 ms). Encryption at rest
   doesn't protect against someone who can read the process's memory.

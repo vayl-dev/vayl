@@ -26,6 +26,7 @@ import traceback
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from vayl import __version__
 from vayl.auth import auth
 from vayl.auth.auth import Auth
 from vayl.auth.auth import Capability as C
@@ -109,7 +110,7 @@ def _transport_security():
     }
 
 
-mcp = FastMCP("vayl")
+mcp = FastMCP("vayl", version=__version__)   # serverInfo.version; FastMCP's own otherwise
 _db_path = os.path.expanduser(os.environ.get("VAYL_DB", "vayl.db"))
 _store = Store(_db_path, graph=_maybe_graph())
 _metrics = Metrics(_store.db, _store.crypter)
@@ -287,9 +288,19 @@ def remember(text: str, user_id: str = "default", agent_id: str = "", run_id: st
         _audit.record("remember", user_id, agent_id, run_id,
                       (f"[{source}] " if source else "")
                       + ("; ".join(f"{a.value} {s}" for a, s, v in results) or "no durable fact"))
-        if not results:
+        # SKIP is the engine declining to record something (a hypothetical, sarcasm, a removal with
+        # nothing to remove) — reporting it under "Stored:" told the caller the opposite.
+        stored = [(a, s, v) for a, s, v in results if a.value != "SKIP"]
+        skipped = [(s, v) for a, s, v in results if a.value == "SKIP"]
+        if not stored and not skipped:
             return "No durable fact found (looked like chatter or a question)."
-        return "Stored: " + "; ".join(f"[{a.value}] {s} = {v}" for a, s, v in results)
+        out = []
+        if stored:
+            out.append("Stored: " + "; ".join(f"[{a.value}] {s} = {v}" for a, s, v in stored))
+        if skipped:
+            out.append("Not stored (hypothetical, sarcasm, or nothing to change): "
+                       + "; ".join(f"{s} = {v}" for s, v in skipped))
+        return "\n".join(out)
     return _guard("remember", go, cap=C.WRITE, space=user_id)
 
 
@@ -360,11 +371,24 @@ def forget(text: str, user_id: str = "default", agent_id: str = "", run_id: str 
             _store.save(user_id, m, agent_id, run_id)
         _metrics.record_actions([a.value for a, _s, _v in results])
         _audit.record("forget", user_id, agent_id, run_id,
-                      "; ".join(f"{s}={v}" for a, s, v in results if a.value == "RETRACT") or "nothing to retract")
-        retracted = [(s, v) for a, s, v in results if a.value == "RETRACT"]
-        if not retracted:
-            return "Nothing matching to retract (that fact isn't currently stored)."
-        return "Retracted (retained in history for audit): " + "; ".join(f"{s} = {v}" for s, v in retracted)
+                      "; ".join(f"{a.value} {s}={v}" for a, s, v in results
+                                if a.value in ("RETRACT", "FLAG", "DEDUP")) or "nothing to retract")
+        # On a confirm-required slot the engine PROPOSES the removal (FLAG) instead of applying it,
+        # or finds the same removal already queued (DEDUP). Saying "nothing to retract" there hid a
+        # pending proposal from the caller.
+        by = {k: [(s, v) for a, s, v in results if a.value == k] for k in ("RETRACT", "FLAG", "DEDUP")}
+        out = []
+        if by["RETRACT"]:
+            out.append("Retracted (retained in history for audit): "
+                       + "; ".join(f"{s} = {v}" for s, v in by["RETRACT"]))
+        if by["FLAG"]:
+            out.append("Proposed for removal, awaiting approval (the value stays current until someone "
+                       "approves it with confirm_change; see pending_changes): "
+                       + "; ".join(f"{s} = {v}" for s, v in by["FLAG"]))
+        if by["DEDUP"]:
+            out.append("Already awaiting approval (see pending_changes): "
+                       + "; ".join(s for s, _v in by["DEDUP"]))
+        return "\n".join(out) or "Nothing matching to retract (that fact isn't currently stored)."
     return _guard("forget", go, cap=C.WRITE, space=user_id)
 
 
@@ -537,11 +561,13 @@ def delete(subject: str, user_id: str = "default", agent_id: str = "", run_id: s
         nd = _decisions.redact(user_id, subject=subject, agent_id=agent_id, run_id=run_id)
         chain_hash = _audit.record("delete(erasure)", user_id, agent_id, run_id,
                                    f"subject={subject} rows={n} decisions_redacted={nd}")
+        if not n and not nd:
+            # The request is in the audit log; a signed receipt for erasing nothing would only be
+            # an unreported receipt number the caller never sees.
+            return f"No records found for '{subject}'."
         rec = receipts_mod.make_receipt(_signer, "delete", f"{user_id}/{agent_id}/{run_id}",
                                         subject, n, chain_hash)
         rid = _receipts.save(rec)
-        if not n and not nd:
-            return f"No records found for '{subject}'."
         return (f"Erased {n} record(s) for '{subject}'"
                 + (f"; redacted its values from {nd} decision snapshot(s)" if nd else "") + ".\n"
                 f"  signed erasure receipt #{rid} issued — verify with verify_receipt #{rid} "
@@ -706,8 +732,9 @@ def pending_changes(user_id: str = "default", agent_id: str = "", run_id: str = 
         for s in rows:
             proposed = (s.metadata or {}).get("pending", "?")
             cur = next((t.value for t in m.active() if t.id == s.supersedes), "(unknown)")
-            verb = "REMOVE" if proposed == "RETRACT" else "REPLACE"
-            lines.append(f"  #{s.id} {verb} {s.subject}: {cur!r} -> {s.value!r}"
+            change = (f"REMOVE {s.subject}: {cur!r}" if proposed == "RETRACT"   # no new value to show
+                      else f"REPLACE {s.subject}: {cur!r} -> {s.value!r}")
+            lines.append(f"  #{s.id} {change}"
                          + (f"\n        said: {s.raw[:120]!r}" if s.raw else ""))
         return (f"{len(rows)} change(s) awaiting approval:\n" + "\n".join(lines)
                 + "\n\nApprove with confirm_change(memory_id), discard with reject_change(memory_id).")
@@ -1051,7 +1078,10 @@ def configure_logging():
     handler.addFilter(_RequestIdFilter())
     handler.setFormatter(_JsonFormatter() if fmt == "json" else logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s"))
-    logging.basicConfig(level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(), handlers=[handler])
+    level = os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper()
+    if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        raise ValueError(f"VAYL_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL, got {level!r}")
+    logging.basicConfig(level=level, handlers=[handler])
 
 
 def startup():

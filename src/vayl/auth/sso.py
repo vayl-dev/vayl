@@ -51,10 +51,14 @@ def configured():
     jwks_url = os.environ.get("VAYL_OIDC_JWKS_URL")
     if not (issuer and audience and jwks_url):
         return None
+    # A malformed map used to become {} silently, so every SSO user got the default role and the
+    # operator never learned why their admins weren't admins.
     try:
         role_map = json.loads(os.environ.get("VAYL_OIDC_ROLE_MAP") or "{}")
-    except ValueError:
-        role_map = {}
+    except ValueError as e:
+        raise ValueError(f"VAYL_OIDC_ROLE_MAP must be a JSON object like {{\"group\": \"role\"}}: {e}") from None
+    if not isinstance(role_map, dict):
+        raise ValueError("VAYL_OIDC_ROLE_MAP must be a JSON object like {\"group\": \"role\"}")
     return OidcConfig(
         issuer=issuer, audience=audience, jwks_url=jwks_url,
         role_claim=os.environ.get("VAYL_OIDC_ROLE_CLAIM", "groups"),

@@ -5,6 +5,21 @@ All notable changes to Vayl are documented here. This project adheres to
 
 ## [Unreleased]
 
+### Fixed
+- **A same-scope COEXIST can't leave two active values.** A model that labelled a change COEXIST but
+  kept the same scope left both values active (`state = Redux` and `state = Zustand`). It's now checked
+  like any other change; a real COEXIST, on a different scope, still keeps both.
+- `forget` on a confirm-required slot reports the queued removal ("Proposed for removal, awaiting
+  approval…" or "Already awaiting approval…") instead of "Nothing matching to retract".
+- `remember` no longer lists SKIP results (hypotheticals, sarcasm) under "Stored:".
+- `check_before_act` and `safe_recall` list each reason once.
+- `pending_changes` shows a proposed removal as `REMOVE subject: 'value'` instead of `'value' -> 'value'`.
+- `delete` that erases nothing issues no signed receipt; the request is still in the audit log.
+- The MCP `serverInfo.version` is Vayl's version, not FastMCP's.
+- An invalid `VAYL_LOG_LEVEL` or a malformed `VAYL_OIDC_ROLE_MAP` fails at startup naming the variable.
+  A malformed role map used to be ignored, giving every SSO user the default role.
+
+
 ### Security
 - **Reconcile policies are isolated per tenant.** The policy table was keyed by
   `(user_id, agent_id, run_id)` without the tenant, so one tenant's `set_reconcile_policy` replaced
@@ -109,7 +124,7 @@ HTTP server. No breaking API changes; see **Upgrading from 0.4** below.
   it decrypted every row again and re-parsed every embedding. Short encrypted fields now go through a
   bounded ciphertext→plaintext cache. Decoded embeddings are cached by the SHA-256 of their stored text
   and carry a precomputed norm, and recall ranks with `math.sumprod` on Python 3.12+. Every hard delete
-  (`forget`, account erasure, retention expiry) clears both caches, so erased data doesn't stay in
+  (`delete`, `delete_all`, retention expiry) clears both caches, so erased data doesn't stay in
   process memory. At 1,000 facts, with encryption on and model calls stubbed out, median `remember`
   drops from 122 ms to 23 ms and `recall` from 444 ms to 59 ms.
 

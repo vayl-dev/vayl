@@ -3,10 +3,11 @@
 Thanks for your interest in contributing! Bug reports, docs, tests, new LLM providers, and
 reconciliation edge cases are especially welcome.
 
-The full contributor guide — setup, the free-threaded workflow, benchmarks, and the project layout —
-lives in the README:
+The full contributor guide lives in the docs:
 
-👉 **[README → Contributing](README.md#contributing)**
+- 👉 **[Local development](https://vayl.gitbook.io/vayl-docs/documentation/development/local-development)**: setup, running the unit and integration suites,
+  lint and type checks, and the repository layout.
+- 👉 **[Contributing](https://vayl.gitbook.io/vayl-docs/documentation/development/contributing)**: the pull request workflow, required checks, and conventions.
 
 ## TL;DR
 
@@ -37,8 +38,8 @@ New here? These are self-contained and have a clear template to copy — look fo
 
 ## Ground rules
 
-- Keep the **core at two dependencies** (`mcp`, `cryptography`); anything heavier goes behind an
-  optional extra in `pyproject.toml`.
+- Keep the **core dependencies few** (today `fastmcp`, `mcp`, `cryptography`); anything heavier goes
+  behind an optional extra in `pyproject.toml`.
 - Unit tests stay **offline and deterministic** — LLM-dependent checks belong in `benchmarks/`.
   This is enforced: `tests/conftest.py` fails any test that tries to reach a model or cloud port
   (Ollama, HTTP/S), even if the code swallows the error. Stub the seam instead — e.g.

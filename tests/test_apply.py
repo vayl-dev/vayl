@@ -731,3 +731,31 @@ def test_update_by_id_bypasses_the_confirmation_gate(clinical):
     assert new is not None and new.value == "apixaban"
     assert [s.value for s in m.active()] == ["apixaban"]     # applied, not queued
     assert not m.pending()
+
+
+def test_coexist_on_the_same_scope_cannot_leave_two_active_values():
+    """COEXIST means 'differs by scope'. A model that says COEXIST but gives the SAME scope left
+    Redux and Zustand both active — the stale-value failure the invariant exists to prevent."""
+    m = LLMMemory()
+    m._apply(fact(value="Redux"), "we use Redux")
+    act, _s, _v = m._apply(fact(action="COEXIST", value="Zustand"), "we use Zustand")
+    assert act.value == "SUPERSEDE"
+    assert [s.value for s in m.active()] == ["Zustand"]
+
+
+def test_a_real_coexist_on_a_different_scope_keeps_both():
+    m = LLMMemory()
+    m._apply(fact(value="Redux", scope="web"), "the web app uses Redux")
+    act, _s, _v = m._apply(fact(action="COEXIST", value="MobX", scope="mobile"), "mobile uses MobX")
+    assert act.value == "COEXIST"
+    assert sorted(s.value for s in m.active()) == ["MobX", "Redux"]
+
+
+def test_check_reports_each_reason_once():
+    """Two unresolved proposals on one subject are one 'disputed' reason, not two identical lines."""
+    m = LLMMemory()
+    m._apply(fact(value="Redux"), "x")
+    m._apply(fact(action="FLAG", value="Zustand"), "maybe zustand")
+    m._apply(fact(action="FLAG", value="MobX"), "maybe mobx")
+    reasons = m.check("state")["reasons"]
+    assert len(reasons) == len(set(reasons)) and any("disputed" in r for r in reasons)

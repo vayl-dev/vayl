@@ -829,7 +829,9 @@ class LLMMemory:
             # values are left active, which is exactly what makes a store answer with a stale value.
             # Two contradictory actives on one slot never survive: recency wins the slot, unless a
             # source-authority policy forbids the overwrite (then the current value stands and the
-            # incoming one is flagged). COEXIST is exempt — it differs by SCOPE, so both stay true.
+            # incoming one is flagged). A real COEXIST differs by SCOPE and so never matches the
+            # same-(subject, scope) rival below; one labelled COEXIST on the SAME scope is a change
+            # the model misnamed, and is checked like one rather than left beside the old value.
             # An event has no rival: it does not occupy a single-valued slot — EXCEPT when the operator
             # declared the slot single-valued AND a different value is already active there. Then the
             # incoming fact contradicts the current value, so it is a state change and must supersede,
@@ -848,7 +850,7 @@ class LLMMemory:
                 # drug with no identity match has no rival and simply joins the list.
                 rival = (_slot_target([s for s in self.active() if not _is_event(s)], subj, val, True)
                          if act == Action.SUPERSEDE else None)
-            elif act in (Action.ADD, Action.SUPERSEDE, Action.REFINE):
+            elif act in (Action.ADD, Action.SUPERSEDE, Action.REFINE, Action.COEXIST):
                 # A declared single-valued slot admits an active event as a rival too, so a mislabelled
                 # state-change retires the incumbent (and later switches keep reconciling cleanly).
                 rival = next((s for s in self.active()
@@ -1035,6 +1037,8 @@ class LLMMemory:
             ok, rs = evaluate_fact(p, policy, now)
             checked.append({**p, "ok": ok, "reasons": rs})
             reasons += rs
+        # one line per distinct reason: two pending proposals are one "disputed", not two
+        reasons = list(dict.fromkeys(reasons))
         return {"ok": len(reasons) == 0, "subject": subject, "reasons": reasons, "facts": checked}
 
     def safe_recall(self, question, policy=None, retrieve=None, k=None, now=None,
@@ -1064,6 +1068,7 @@ class LLMMemory:
             for s in self.statements:
                 if s.status == Status.FLAGGED and s.subject in subjects:
                     reasons.append(f"unresolved conflict on '{s.subject}' — the value is disputed")
+        reasons = list(dict.fromkeys(reasons))
         ok = len(reasons) == 0
         return {"ok": ok, "answer": answer if ok else None, "reasons": reasons, "used": active_used}
 
