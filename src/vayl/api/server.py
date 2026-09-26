@@ -127,7 +127,10 @@ class LimitsMiddleware:
         async def replay_receive():
             nonlocal replayed
             if replayed:
-                return {"type": "http.disconnect"}
+                # After the body, receive() is how a streaming (SSE) response learns the client left.
+                # Answering http.disconnect here made every streamed MCP response cancel itself; the
+                # real receive() reports a disconnect only when one actually happens.
+                return await receive()
             replayed = True
             return {"type": "http.request", "body": body, "more_body": False}
 

@@ -335,3 +335,21 @@ def test_neo4j_graph_refuses_an_empty_password():
     from vayl.storage.graph_store import Neo4jGraph
     with pytest.raises(ValueError, match="password"):
         Neo4jGraph(pw="")
+
+
+def test_real_mcp_tool_call_over_http_returns_its_result(monkeypatch, tmp_path):
+    """End to end through every middleware: a streamable-HTTP tools/call must come back with its
+    result. LimitsMiddleware once answered every receive() after the body with http.disconnect,
+    which made the SSE response cancel itself — every call returned 200 with an empty body."""
+    monkeypatch.setattr(mcp_server, "_AUTH_REQUIRED", True)
+    auth = Auth(sqlite3.connect(":memory:", check_same_thread=False))
+    _p, key = auth.create("ops", roles=Role.ADMIN)
+    mcp_app = mcp_server.mcp.http_app(transport="http", stateless_http=True)
+    app = srv.build_app(mcp_app, auth, _StoreStub())
+    headers = {"Authorization": f"Bearer {key}", "Accept": "application/json, text/event-stream"}
+    call = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "export_public_key", "arguments": {}}}
+    with TestClient(app) as c:
+        r = c.post("/mcp", json=call, headers=headers)
+    assert r.status_code == 200
+    assert '"result"' in r.text and '"isError":true' not in r.text.replace(" ", ""), r.text
