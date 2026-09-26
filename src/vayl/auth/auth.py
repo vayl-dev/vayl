@@ -31,6 +31,7 @@ class Capability(str, Enum):
     WRITE = "write"      # remember / forget / update / decisions / attest — change memory
     DELETE = "delete"    # single-subject erasure (GDPR) — destructive but a data-subject right
     VERIFY = "verify"    # audit / verify / explain / stats / health — accountability reads
+    APPROVE = "approve"  # confirm / reject a gated change — a person's sign-off, so agents lack it
     ADMIN = "admin"      # wipe-all, retention, policy config, manage principals — org control
 
 
@@ -44,8 +45,8 @@ class Role(str, Enum):
 
 C = Capability
 ROLE_CAPS = {
-    Role.ADMIN:   {C.READ, C.WRITE, C.DELETE, C.VERIFY, C.ADMIN},
-    Role.MEMBER:  {C.READ, C.WRITE, C.DELETE, C.VERIFY},
+    Role.ADMIN:   {C.READ, C.WRITE, C.DELETE, C.VERIFY, C.APPROVE, C.ADMIN},
+    Role.MEMBER:  {C.READ, C.WRITE, C.DELETE, C.VERIFY, C.APPROVE},
     Role.AGENT:   {C.READ, C.WRITE, C.VERIFY},
     Role.VIEWER:  {C.READ, C.VERIFY},
     Role.AUDITOR: {C.VERIFY},
