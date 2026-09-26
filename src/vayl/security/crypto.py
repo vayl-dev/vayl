@@ -155,7 +155,7 @@ def resolve(db_path):
     FAIL-CLOSED (Art. 32): if encryption is on — the default — but the key material or the
     `cryptography` package is unavailable, raise instead of silently running unencrypted.
     Plaintext must always be an explicit operator decision, never a quiet degradation."""
-    if os.environ.get("VAYL_ENCRYPT", "on").lower() in ("off", "0", "false", "no"):
+    if not env_bool("VAYL_ENCRYPT", True):
         return None
     pw = os.environ.get("VAYL_KEY")
     if pw:
@@ -178,7 +178,7 @@ def resolve_signer(db_path):
     auto-generated `<db>.sign.key` (0600). Deliberately INDEPENDENT of VAYL_ENCRYPT — integrity is a
     separate guarantee from confidentiality. FAIL-CLOSED like resolve(): unsigned operation must be
     an explicit choice, not a silent downgrade."""
-    if os.environ.get("VAYL_SIGN", "on").lower() in ("off", "0", "false", "no"):
+    if not env_bool("VAYL_SIGN", True):
         return None
     pw = os.environ.get("VAYL_KEY")
     if pw:

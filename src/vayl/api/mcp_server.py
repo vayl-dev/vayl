@@ -29,6 +29,7 @@ from mcp.types import ToolAnnotations
 from vayl.auth import auth
 from vayl.auth.auth import Auth
 from vayl.auth.auth import Capability as C
+from vayl.config import env_bool
 from vayl.licensing import license as license_mod
 from vayl.licensing import receipts as receipts_mod
 from vayl.licensing.receipts import Receipts
@@ -65,7 +66,7 @@ def _destructive(title):
 def _maybe_graph():
     """Attach the optional Neo4j graph projection when configured (VAYL_GRAPH=1).
     Fully graceful: if the driver or DB is unavailable, we run slot-only rather than crash."""
-    if os.environ.get("VAYL_GRAPH", "").lower() not in ("1", "true", "yes"):
+    if not env_bool("VAYL_GRAPH", False):
         return None
     # A missing password is misconfiguration, not an outage: fail at startup instead of silently
     # connecting with a well-known default.
@@ -128,7 +129,7 @@ _license = license_mod.load()
 # from the Bearer key; under local stdio it's unset → we fall back to a trusted local admin, UNLESS
 # VAYL_AUTH_REQUIRED is on (the remote server sets it), in which case an unset principal is denied.
 _principal_ctx = contextvars.ContextVar("vayl_principal", default=None)
-_AUTH_REQUIRED = os.environ.get("VAYL_AUTH_REQUIRED", "").lower() in ("1", "true", "yes")
+_AUTH_REQUIRED = env_bool("VAYL_AUTH_REQUIRED", False)
 
 
 def set_principal(principal):

@@ -49,3 +49,24 @@ def test_vault_mode_requires_a_token(monkeypatch, tmp_path):
     monkeypatch.delenv("VAULT_TOKEN", raising=False)
     with pytest.raises(ValueError, match="requires VAULT_TOKEN"):
         kms.data_key(str(tmp_path / "k"))
+
+
+def test_env_bool_accepts_the_usual_spellings_and_rejects_typos(monkeypatch):
+    from vayl.config import env_bool
+    for raw, want in (("on", True), ("TRUE", True), ("1", True), ("yes", True),
+                      ("off", False), ("False", False), ("0", False), ("no", False)):
+        monkeypatch.setenv("X_FLAG", raw)
+        assert env_bool("X_FLAG", not want) is want, raw
+    monkeypatch.setenv("X_FLAG", "")
+    assert env_bool("X_FLAG", True) is True                   # empty -> default
+    monkeypatch.setenv("X_FLAG", "of")
+    with pytest.raises(ValueError, match="X_FLAG must be on or off, got 'of'"):
+        env_bool("X_FLAG", True)
+
+
+def test_a_mistyped_security_switch_fails_instead_of_defaulting(monkeypatch, tmp_path):
+    """VAYL_ENCRYPT=of used to mean 'on' and VAYL_AUTH_REQUIRED=on used to mean 'off'."""
+    from vayl.security import crypto
+    monkeypatch.setenv("VAYL_ENCRYPT", "of")
+    with pytest.raises(ValueError, match="VAYL_ENCRYPT must be on or off"):
+        crypto.resolve(str(tmp_path / "v.db"))
