@@ -353,3 +353,17 @@ def test_real_mcp_tool_call_over_http_returns_its_result(monkeypatch, tmp_path):
         r = c.post("/mcp", json=call, headers=headers)
     assert r.status_code == 200
     assert '"result"' in r.text and '"isError":true' not in r.text.replace(" ", ""), r.text
+
+
+def test_openapi_spec_matches_the_server_routes():
+    """openapi/vayl-server.yaml renders the API Reference; it must list exactly the routes served."""
+    yaml = pytest.importorskip("yaml")
+    import pathlib
+
+    import vayl
+    spec = yaml.safe_load((pathlib.Path(__file__).parents[1] / "openapi" / "vayl-server.yaml").read_text())
+    app = srv.build_app(Starlette(routes=[]), Auth(sqlite3.connect(":memory:")), _StoreStub())
+    routes = {getattr(r, "path", "") for r in app.app.app.routes}          # through both middlewares
+    served = {"/mcp" if p == "" else p for p in routes}                     # the MCP app is mounted at /
+    assert set(spec["paths"]) == served
+    assert spec["info"]["version"] == vayl.__version__
