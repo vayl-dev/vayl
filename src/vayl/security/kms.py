@@ -38,14 +38,20 @@ def _read_or_create(path, nbytes):
 
 def data_key(base_path, nbytes=32):
     """Return `nbytes` of key material for `base_path`, per the VAYL_KMS provider."""
-    if os.environ.get("VAYL_KMS", "file").lower() == "vault":
+    provider = os.environ.get("VAYL_KMS", "").strip().lower() or "file"
+    if provider == "vault":
         return _vault_data_key(base_path, nbytes)
+    if provider != "file":
+        # a typo must not silently downgrade key custody from Vault to a key file on disk
+        raise ValueError(f"VAYL_KMS must be 'file' or 'vault', got {provider!r}")
     return _read_or_create(base_path, nbytes)
 
 
 def _vault_cfg():
     addr = os.environ.get("VAULT_ADDR", "http://127.0.0.1:8200").rstrip("/")
     token = os.environ.get("VAULT_TOKEN", "")
+    if not token:
+        raise ValueError("VAYL_KMS=vault requires VAULT_TOKEN")
     mount = os.environ.get("VAYL_VAULT_TRANSIT_MOUNT", "transit")
     key = os.environ.get("VAYL_VAULT_TRANSIT_KEY", "vayl")
     return addr, token, mount, key

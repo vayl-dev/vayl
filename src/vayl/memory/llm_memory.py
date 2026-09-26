@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.request
 
+from vayl.config import env_float, env_int
 from vayl.memory.reconcile import (
     HYPOTHETICAL_MARKERS,
     RETRACT_MARKERS,
@@ -38,13 +39,13 @@ AUTO_THRESHOLD = 0.7
 # bounded as memory grows instead of scaling with the whole space. _apply still reconciles against
 # the FULL active set (the same-slot invariant + target lookup), so a conflict outside the top-k is
 # still caught — the cap bounds cost, it does not weaken reconciliation.
-_RECONCILE_CONTEXT = int(os.environ.get("VAYL_RECONCILE_CONTEXT", "40"))
+_RECONCILE_CONTEXT = env_int("VAYL_RECONCILE_CONTEXT", 40)
 
 # Recall context cap — how many facts the synthesizer sees per read. When a space has this many facts
 # or fewer, recall passes them ALL (embed_retrieve returns everything under the cap → no query
 # embedding at read time, ~700 ms saved, and the model sees every active fact so it can't miss the
 # answer). A larger space falls back to top-k semantic+lexical retrieval to keep the context bounded.
-_RECALL_CONTEXT = int(os.environ.get("VAYL_RECALL_CONTEXT", "40"))
+_RECALL_CONTEXT = env_int("VAYL_RECALL_CONTEXT", 40)
 
 # Graph relations that hold MANY tails per head (a service depends on several; a team has several
 # members) — these coexist. Everything NOT listed is treated as FUNCTIONAL (one tail per head), so a
@@ -256,7 +257,7 @@ def _first_json(raw):
 try:
     import urllib3 as _urllib3
     _POOL = _urllib3.PoolManager(
-        maxsize=int(os.environ.get("VAYL_HTTP_POOL", "8")),
+        maxsize=env_int("VAYL_HTTP_POOL", 8),
         retries=False,                       # we do our own 429/5xx backoff below
         headers={"User-Agent": "vayl/0.1"})
 except Exception:                            # not installed → transparent urllib fallback
@@ -298,13 +299,21 @@ def _http_json(req, timeout, retries=10):
                 time.sleep(min(2 ** i, 20) + random.random()); continue
             raise
 
+_PROVIDERS = ("anthropic", "openai", "groq")
+
+
 def _provider():
     """Which LLM backend to use. Explicit LLM_PROVIDER wins; else infer from whichever key is
     present; else default to the OpenAI-compatible path — which, with no cloud key, points at a
     LOCAL Ollama (see _openai_config). So out of the box Vayl runs locally with NO data egress."""
-    p = os.environ.get("LLM_PROVIDER")
+    p = os.environ.get("LLM_PROVIDER", "").strip().lower()
     if p:
-        return p.lower()
+        # An unknown value used to fall through to Anthropic for extraction (and to the
+        # OpenAI-compatible path for answers) — a typo could send data to a provider nobody chose.
+        if p not in _PROVIDERS:
+            raise ValueError(f"LLM_PROVIDER must be one of {', '.join(_PROVIDERS)}, got {p!r}. For Ollama "
+                             "or any OpenAI-compatible endpoint, use 'openai' with OPENAI_BASE_URL.")
+        return p
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "anthropic"
     if os.environ.get("GROQ_API_KEY"):
@@ -346,7 +355,7 @@ def _call_groq(user):
     key = os.environ["GROQ_API_KEY"]
     payload = json.dumps({
         "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
-        "max_tokens": 400, "temperature": float(os.environ.get("GROQ_TEMP", "0")),
+        "max_tokens": 400, "temperature": env_float("GROQ_TEMP", 0.0),
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": SYS + SLOT_SCHEMA.prompt_fragment()},
                      {"role": "user", "content": user}],
@@ -354,7 +363,7 @@ def _call_groq(user):
     req = urllib.request.Request("https://api.groq.com/openai/v1/chat/completions", data=payload,
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
                  "User-Agent": "vayl-eval/1.0"})   # Cloudflare 403s the default urllib UA
-    data = _http_json(req, timeout=float(os.environ.get("LLM_TIMEOUT","60")))
+    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
     return _first_json(data["choices"][0]["message"]["content"])
 
 def _openai_gen_params(model, default_max):
@@ -365,10 +374,10 @@ def _openai_gen_params(model, default_max):
     endpoints keep the classic `max_tokens` + temperature. Override via OPENAI_MAX_TOKENS /
     OPENAI_REASONING_EFFORT / OPENAI_TEMP."""
     if model.startswith("gpt-5") or (model[:1] == "o" and model[1:2].isdigit()):
-        return {"max_completion_tokens": int(os.environ.get("OPENAI_MAX_TOKENS", str(max(default_max, 2000)))),
+        return {"max_completion_tokens": env_int("OPENAI_MAX_TOKENS", max(default_max, 2000)),
                 "reasoning_effort": os.environ.get("OPENAI_REASONING_EFFORT", "minimal")}
-    return {"max_tokens": int(os.environ.get("OPENAI_MAX_TOKENS", str(default_max))),
-            "temperature": float(os.environ.get("OPENAI_TEMP", "0"))}
+    return {"max_tokens": env_int("OPENAI_MAX_TOKENS", default_max),
+            "temperature": env_float("OPENAI_TEMP", 0.0)}
 
 
 def _call_openai(user):
@@ -391,7 +400,7 @@ def _call_openai(user):
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
                  "User-Agent": "vayl/0.1"})
-    data = _http_json(req, timeout=float(os.environ.get("LLM_TIMEOUT","60")))
+    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
     return _first_json(data["choices"][0]["message"]["content"])
 
 def _embed(texts):
@@ -404,7 +413,7 @@ def _embed(texts):
     payload = json.dumps({"model": model, "input": list(texts)}).encode()
     req = urllib.request.Request(base + "/embeddings", data=payload,
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json", "User-Agent": "vayl/0.1"})
-    data = _http_json(req, timeout=float(os.environ.get("LLM_TIMEOUT", "60")))
+    data = _http_json(req, timeout=env_float("LLM_TIMEOUT", 60.0))
     return [row["embedding"] for row in data["data"]]
 
 def _cos(a, b):
@@ -430,7 +439,7 @@ def _tokens(text):
 # look like that; a fixed network cost does. Bounded so a long-lived process cannot grow it
 # without limit, and keyed by the exact text since a paraphrase is a different vector.
 _QEMB_CACHE = {}
-_QEMB_CACHE_MAX = int(os.environ.get("VAYL_QUERY_CACHE", "512"))
+_QEMB_CACHE_MAX = env_int("VAYL_QUERY_CACHE", 512)
 
 
 def _embed_query(question):
@@ -539,7 +548,7 @@ def _qa(context, question):
     req = urllib.request.Request(url, data=payload, headers=hdr)
     return _http_json(req, 30)["choices"][0]["message"]["content"].strip()
 
-_EXTRACT_JSON_RETRIES = int(os.environ.get("VAYL_EXTRACT_RETRIES", "2"))
+_EXTRACT_JSON_RETRIES = env_int("VAYL_EXTRACT_RETRIES", 2)
 
 # ── PRE-LLM DEDUP ──
 # The write path spends one LLM call per message even when the message is a verbatim restatement of
@@ -602,7 +611,7 @@ except Exception:                       # unreadable/malformed JSON — surface 
 
 _CRITICAL_CATEGORIES = tuple(
     c.strip().lower() for c in os.environ.get("VAYL_CRITICAL_CATEGORIES", "").split(",") if c.strip())
-_CRITICAL_BUDGET = int(os.environ.get("VAYL_CRITICAL_BUDGET", "200"))
+_CRITICAL_BUDGET = env_int("VAYL_CRITICAL_BUDGET", 200)
 
 # Fragment resolution. A weak or verbose extractor names the same slot several ways —
 # `caroline_self_care_realization`, then `..._8_may_2023`, then `..._14_may_2023` — with the SAME
@@ -619,7 +628,7 @@ _SLOT_RESOLVE = os.environ.get("VAYL_SLOT_RESOLVE", "").lower() in ("1", "true",
 # deployment sets VAYL_TRUSTED_SOURCES=fhir,hl7.
 _TRUSTED_SOURCES = tuple(
     x.strip().lower() for x in os.environ.get("VAYL_TRUSTED_SOURCES", "").split(",") if x.strip())
-_SLOT_RESOLVE_SIM = float(os.environ.get("VAYL_SLOT_RESOLVE_SIM", "0.6"))
+_SLOT_RESOLVE_SIM = env_float("VAYL_SLOT_RESOLVE_SIM", 0.6)
 _DATE_TOK = re.compile(r"^(\d+|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
                        r"january|february|march|april|june|july|august|september|october|"
                        r"november|december|st|nd|rd|th)$")

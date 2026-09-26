@@ -977,8 +977,16 @@ def configure_logging():
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
-def main():
+def startup():
+    """Entry-point setup: logging, then settings that are otherwise read lazily — so a typo fails at
+    launch with a clear message instead of on the first tool call."""
     configure_logging()
+    from vayl.memory.llm_memory import _provider
+    _provider()
+
+
+def main():
+    startup()
     # show_banner=False: on stdio the banner would print to the console; keep the transport clean.
     mcp.run(show_banner=False)
 
