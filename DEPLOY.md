@@ -187,8 +187,16 @@ still work alongside.
 - **Backups:** back up the `vayl-data` volume (SQLite DB + keys) — or your Postgres, if used. The
   `<db>.key*` files are the *only* way to decrypt at-rest data; back them up securely (or use Vault,
   where the master key is in Vault and only a wrapped blob is on the host).
-- **Upgrades:** `git pull && docker compose up -d --build`. Schema migrations are automatic and
-  backward-compatible.
+- **Upgrades:** back up first, then `git pull && docker compose up -d --build`. Vayl applies pending
+  schema migrations on startup, in order, and records them in the `schema_migrations` table. To apply
+  them explicitly before starting several server processes, run
+  `docker compose run --rm vayl vayl-migrate up`. `vayl-migrate status` shows what is applied and
+  what is pending.
+- **Rolling back:** migrations are additive, so the previous release keeps running on an upgraded
+  database. Roll back the image and start it. The CHANGELOG flags any migration that isn't additive;
+  for those, restore the backup you took before upgrading. An older Vayl refuses to start on a schema
+  newer than it knows, and says which version it found, so it never writes to a schema it doesn't
+  understand.
 - **Logs & metrics:** `docker compose logs -f vayl`; scrape `/metrics` (Prometheus) from your monitoring.
 - **Rotation:** rotate principal keys with `revoke_principal` + `create_principal`. For the master key,
   rotate in Vault (`VAYL_KMS=vault`).

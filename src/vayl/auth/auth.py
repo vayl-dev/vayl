@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from vayl.storage.db import ensure
+from vayl.storage.migrations import migrate
 
 KEY_PREFIX = "vayl_sk_"
 
@@ -133,23 +134,7 @@ class Auth:
     def __init__(self, db, crypter=None):
         self.db = ensure(db)
         self.crypter = crypter   # principal names are team-member personal data → encrypt at rest
-        self.db.execute(
-            "CREATE TABLE IF NOT EXISTS principals(id TEXT PRIMARY KEY, name TEXT, kind TEXT, "
-            "api_key_hash TEXT UNIQUE, roles TEXT, disabled INTEGER DEFAULT 0, created_at REAL)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_prin_key ON principals(api_key_hash)")
-        # Added after the first release: existing rows get NULL, which `_parse_scopes`
-        # reads as unrestricted — so an upgrade never locks an existing principal out.
-        try:
-            self.db.execute("ALTER TABLE principals ADD COLUMN scopes TEXT")
-        except Exception:
-            pass                      # already present
-        # tenant: added later than scopes. Existing rows get NULL → treated as the 'default' tenant, so
-        # an upgrade leaves a single-tenant deployment behaving exactly as before.
-        try:
-            self.db.execute("ALTER TABLE principals ADD COLUMN tenant TEXT")
-        except Exception:
-            pass                      # already present
-        self.db.commit()
+        migrate(self.db)
 
     def _enc_name(self, s):
         return self.crypter.enc(s) if self.crypter and s is not None else s

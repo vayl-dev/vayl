@@ -75,3 +75,74 @@ def test_add_column_if_missing_tolerates_reruns_but_surfaces_real_errors(tmp_pat
     db.add_column_if_missing("t", "b TEXT")                    # re-run: duplicate column is fine
     with pytest.raises(sqlite3.OperationalError):
         db.add_column_if_missing("no_such_table", "c TEXT")    # a real migration failure is not swallowed
+
+
+# ── versioned migrations ──
+
+def _cols(d, table):
+    return {r[1] for r in d.execute(f"PRAGMA table_info({table})")}
+
+
+def test_fresh_database_is_created_at_the_latest_version(tmp_path, monkeypatch):
+    from vayl.storage import migrations
+    from vayl.storage.store import Store
+    monkeypatch.setenv("VAYL_ENCRYPT", "off")
+    st = Store(str(tmp_path / "v.db"))
+    applied, pending = migrations.status(st.db)
+    assert list(applied) == [migrations.LATEST] and pending == []
+    assert migrations.migrate(st.db) == []                    # already current: nothing re-runs
+    for t in ("statements", "space_config", "principals", "audit", "audit_meta", "decisions",
+              "receipts", "metrics", "metric_errors"):
+        assert st.db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] == 0
+
+
+def test_pre_ledger_database_is_upgraded_in_place_without_losing_rows(tmp_path):
+    """A database written by an early release (no ledger, columns missing) is brought to the baseline
+    by the same code path, and its rows survive."""
+    from vayl.auth.auth import Auth
+    from vayl.storage import migrations
+    path = str(tmp_path / "old.db")
+    old = Database(path)
+    old.execute("CREATE TABLE statements(user_id TEXT, id INTEGER, slot TEXT, subject TEXT, value TEXT, "
+                "scope TEXT, status TEXT, supersedes INTEGER, confidence REAL, raw TEXT, seq INTEGER)")
+    old.execute("INSERT INTO statements(user_id, id, subject, value, status) VALUES ('u', 1, 's', 'v', 'ACTIVE')")
+    old.execute("CREATE TABLE principals(id TEXT PRIMARY KEY, name TEXT, kind TEXT, "
+                "api_key_hash TEXT UNIQUE, roles TEXT, disabled INTEGER DEFAULT 0, created_at REAL)")
+    old.execute("INSERT INTO principals(id, name, roles) VALUES ('p1', 'ops', '[\"admin\"]')")
+    old.execute("CREATE INDEX idx_space ON statements(user_id)")
+    old.commit()
+
+    d = Database(path)
+    assert migrations.migrate(d) == [1]
+    assert {"tenant_id", "subject_hmac", "head", "embedding"} <= _cols(d, "statements")
+    assert {"scopes", "tenant"} <= _cols(d, "principals")
+    assert d.execute("SELECT value, tenant_id FROM statements").fetchone() == ("v", "default")
+    assert "idx_space" not in {r[1] for r in d.execute("PRAGMA index_list(statements)")}
+    assert [p["id"] for p in Auth(d).list()] == ["p1"]        # existing principal still listed
+
+
+def test_older_code_refuses_a_newer_schema(tmp_path):
+    from vayl.storage import migrations
+    path = str(tmp_path / "v.db")
+    d = Database(path)
+    migrations.migrate(d)
+    d.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, 'from-the-future', 'x')",
+              (migrations.LATEST + 1,))
+    d.commit()
+    with pytest.raises(migrations.SchemaTooNew, match="only knows up to"):
+        migrations.migrate(Database(path))
+
+
+def test_cli_status_and_up(tmp_path, monkeypatch, capsys):
+    from vayl.storage import migrations
+    monkeypatch.delenv("VAYL_DATABASE_URL", raising=False)
+    monkeypatch.setenv("VAYL_DB", str(tmp_path / "cli.db"))
+    assert migrations.main(["status"]) == 0 and "PENDING" in capsys.readouterr().out
+    assert migrations.main(["up"]) == 0 and "applied: 1" in capsys.readouterr().out
+    assert migrations.main(["up"]) == 0 and "nothing to apply" in capsys.readouterr().out
+    assert migrations.main(["bogus"]) == 2
+
+    d = Database(str(tmp_path / "cli.db"))
+    d.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (99, 'future', 'x')")
+    d.commit()
+    assert migrations.main(["status"]) == 1 and "only knows up to" in capsys.readouterr().err

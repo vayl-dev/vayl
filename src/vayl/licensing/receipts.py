@@ -66,13 +66,11 @@ class Receipts:
     it stays verifiable. Not wiped by memory erasure — it IS the proof that erasure happened."""
     def __init__(self, db, crypter=None, signer=None):
         from vayl.storage.db import ensure
+        from vayl.storage.migrations import migrate
         self.db = ensure(db)
         self.crypter = crypter
         self.signer = signer
-        self.db.execute(
-            f"CREATE TABLE IF NOT EXISTS receipts(id {self.db.autoincrement_pk()}, "
-            "ts TEXT, kind TEXT, payload TEXT, signature TEXT, public_key TEXT)")
-        self.db.commit()
+        migrate(self.db)
 
     def _enc(self, s):
         return self.crypter.enc(s) if self.crypter else s

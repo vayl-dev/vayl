@@ -17,6 +17,7 @@ import hashlib
 import json
 
 from vayl.storage.db import ensure
+from vayl.storage.migrations import migrate
 
 REDACTED = "[redacted — Art. 17 erasure]"
 
@@ -26,11 +27,7 @@ class Decisions:
         self.db = ensure(db)
         self.crypter = crypter
         self.signer = signer
-        self.db.execute(
-            f"CREATE TABLE IF NOT EXISTS decisions(id {self.db.autoincrement_pk()}, "
-            "ts TEXT, user_id TEXT, agent_id TEXT, run_id TEXT, summary TEXT, snapshot TEXT, "
-            "anchor TEXT, entry_hash TEXT, signature TEXT)")
-        self.db.commit()
+        migrate(self.db)
 
     @staticmethod
     def _digest(ts, user_id, agent_id, run_id, summary, snap, anchor):
