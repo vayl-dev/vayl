@@ -22,9 +22,9 @@
 ## Integrations
 
 * [Integrations](integrations/README.md)
-  * [Claude Code](integrations/claude-code.md)
-  * [Cursor](integrations/cursor.md)
-  * [Agent frameworks](integrations/agent-frameworks.md)
+* [Claude Code](integrations/claude-code.md)
+* [Cursor](integrations/cursor.md)
+* [Agent frameworks](integrations/agent-frameworks.md)
 
 ## Guides
 

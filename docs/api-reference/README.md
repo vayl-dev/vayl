@@ -7,7 +7,7 @@ icon: server
 
 # Vayl HTTP API
 
-`vayl-server` serves Vayl's MCP tools over the Model Context Protocol's **streamable HTTP** transport at `POST /mcp`, plus health probes and Prometheus metrics. There is no separate REST route per tool: every memory operation is an MCP `tools/call`. The tools themselves are documented in [MCP tools](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools).
+`vayl-server` serves Vayl's MCP tools over the Model Context Protocol's **streamable HTTP** transport at `POST /mcp`, plus health probes and Prometheus metrics. There is no separate REST route per tool: every memory operation is an MCP `tools/call`. The tools themselves are documented in [MCP tools](https://vayl.gitbook.io/vayl-docs/documentation/reference/mcp-tools).
 
 | Route          | Auth                          | Purpose                                                |
 | -------------- | ----------------------------- | ------------------------------------------------------ |

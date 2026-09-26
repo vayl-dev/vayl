@@ -21,4 +21,4 @@ Tokens must be RS256 with valid `iss`, `aud` and `exp`. Clients send them as `Au
 
 SSO users always belong to the `default` tenant, so an SSO user mapped to `admin` is the deployment operator. Use `VAYL_OIDC_SCOPE_CLAIM` to confine SSO users to their spaces.
 
-More in [Authentication and access](https://vayl.gitbook.io/vayl-docs/documentation/core-concepts/authentication-and-access) and [Configuration](https://vayl.gitbook.io/vayl-docs/documentation/reference/configuration).
+More in [Authentication and access](https://vayl.gitbook.io/vayl-docs/documentation/concepts/authentication-and-access) and [Configuration](https://vayl.gitbook.io/vayl-docs/documentation/reference/configuration).

@@ -20,4 +20,4 @@ Every key belongs to a principal with a role. The role grants capabilities, and 
 * **Tenants** are hard partitions for a shared deployment. Every query is filtered by the key's tenant. Only the **deployment operator**, an admin of the `default` tenant, acts across tenants.
 * **Local stdio** (`vayl-mcp`) runs as the local admin unless `VAYL_AUTH_REQUIRED=on`.
 
-Full reference, including which tool needs which capability: [Authentication and access](https://vayl.gitbook.io/vayl-docs/documentation/core-concepts/authentication-and-access).
+Full reference, including which tool needs which capability: [Authentication and access](https://vayl.gitbook.io/vayl-docs/documentation/concepts/authentication-and-access).

@@ -17,4 +17,4 @@ Use `forget` for correctness and `delete` for privacy, such as a GDPR erasure re
 
 On an approval-gated slot, `forget` doesn't remove anything yet: it replies "Proposed for removal, awaiting approval" and the value stays current until someone approves it with `confirm_change`.
 
-More in [Memory tools](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/memory) and [Compliance (GDPR)](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/compliance-gdpr).
+More in [Memory tools](https://vayl.gitbook.io/vayl-docs/documentation/reference/mcp-tools/memory) and [Compliance (GDPR)](https://vayl.gitbook.io/vayl-docs/documentation/reference/mcp-tools/compliance-gdpr).

@@ -24,4 +24,4 @@ docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api im
 
 **Rotate** a key by creating a new principal and revoking the old one. `revoke_principal(principal_id)` stops the key on its next request; `erase=True` also deletes the record. `list_principals` shows your tenant's principals, never their keys.
 
-More in [Administration tools](https://vayl.gitbook.io/vayl-docs/documentation/mcp-tools/administration).
+More in [Administration tools](https://vayl.gitbook.io/vayl-docs/documentation/reference/mcp-tools/administration).
