@@ -73,7 +73,11 @@ def _maybe_graph():
             pw=os.environ.get("NEO4J_PASSWORD", "testpass123"),
         )
     except Exception:
-        return None   # slot-only fallback — the graph is a bonus, never a hard dependency
+        # slot-only fallback — the graph is a bonus, never a hard dependency. But the operator asked
+        # for it, so say why they aren't getting it.
+        log.warning("VAYL_GRAPH is set but the Neo4j graph is unavailable; running slot-only",
+                    exc_info=True)
+        return None
 
 
 def _transport_security():
