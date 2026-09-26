@@ -15,6 +15,14 @@ All notable changes to Vayl are documented here. This project adheres to
   drops from 122 ms to 23 ms and `recall` from 444 ms to 59 ms.
 
 ### Added
+- **Request IDs on the HTTP server.** Every request gets an ID, echoed in the `X-Request-ID` response
+  header. A plain incoming `X-Request-ID` (up to 64 characters of `A-Z a-z 0-9 . _ : -`) is reused so
+  proxy and Vayl logs line up. The ID appears on every log line written while serving that request, so
+  an error `ref` shown to a client can be traced to its request. Each request also writes one access
+  line at `INFO` with method, path, status and duration, and no client IP, query string or body. Health,
+  readiness and metrics probes log at `DEBUG`.
+- `VAYL_LOG_FORMAT=json` writes one JSON object per log line (default `text`). An unknown value fails
+  at startup.
 - `VAYL_VECTOR_CACHE` (default 8192): how many decoded embeddings to keep, about 6 KB each at 1536
   dimensions. A space with more embedded facts than this re-decrypts the overflow on every recall.
 

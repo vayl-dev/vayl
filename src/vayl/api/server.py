@@ -19,7 +19,10 @@ Run:
 """
 import hmac
 import json
+import logging
 import os
+import re
+import secrets
 import time as _time
 from collections import deque
 from contextlib import asynccontextmanager
@@ -43,6 +46,12 @@ _RATE_PER_MIN = env_int("VAYL_RATE_PER_MIN", 120)
 _TRUSTED_PROXY_HOPS = env_int("VAYL_TRUSTED_PROXY_HOPS", 0)
 # When set, /metrics requires this bearer token (else it is open, for an internal scrape network).
 _METRICS_TOKEN = os.environ.get("VAYL_METRICS_TOKEN", "")
+# An incoming X-Request-ID is reused (so proxy and Vayl logs line up) only if it is short and plain —
+# it is caller-supplied and lands in log lines, so anything else is replaced, never sanitised.
+_REQUEST_ID_OK = re.compile(r"[A-Za-z0-9._:-]{1,64}")
+_PROBES = ("/healthz", "/readyz", "/metrics")
+
+log = logging.getLogger(__name__)
 
 
 def _client_ip(scope, headers):
@@ -123,6 +132,41 @@ class LimitsMiddleware:
             return {"type": "http.request", "body": body, "more_body": False}
 
         return await self.app(scope, replay_receive, send)
+
+
+class RequestIdMiddleware:
+    """Outermost layer: give every HTTP request an ID, bind it for the request so every log line
+    written while serving it carries it, echo it as the X-Request-ID response header, and write one
+    access line when the request finishes. Probes log at DEBUG so they don't drown INFO. The line holds
+    method, path, status and duration only: no client IP, query string or body."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        given = dict(scope.get("headers") or []).get(b"x-request-id", b"").decode("latin-1")
+        rid = given if _REQUEST_ID_OK.fullmatch(given) else secrets.token_hex(8)
+        token = mcp_server.REQUEST_ID.set(rid)
+        status = 500                     # if the app dies before responding, that's what the client sees
+        t0 = _time.perf_counter()
+
+        async def send_with_id(msg):
+            nonlocal status
+            if msg["type"] == "http.response.start":
+                status = msg["status"]
+                msg = {**msg, "headers": [*msg.get("headers", []), (b"x-request-id", rid.encode())]}
+            await send(msg)
+
+        try:
+            await self.app(scope, receive, send_with_id)
+        finally:
+            ms = round((_time.perf_counter() - t0) * 1000, 1)
+            method, path = scope.get("method", ""), scope.get("path", "")
+            log.log(logging.DEBUG if path in _PROBES else logging.INFO, "%s %s %d %.1fms",
+                    method, path, status, ms,
+                    extra={"fields": {"method": method, "path": path, "status": status, "duration_ms": ms}})
+            mcp_server.REQUEST_ID.reset(token)
 
 
 def render_prometheus(snapshot, principals_active, edition):
@@ -236,7 +280,8 @@ def build_app(mcp_app, auth, store, sso_verifier=None):
         Route("/metrics", metrics, methods=["GET"]),
         Mount("/", app=AuthMiddleware(mcp_app, auth, sso_verifier)),
     ], lifespan=lifespan)
-    return LimitsMiddleware(app)   # body cap + rate limit applied before everything else
+    # request ID outermost, so even a 413/429 shed at the edge is logged and traceable
+    return RequestIdMiddleware(LimitsMiddleware(app))   # then body cap + rate limit, before auth
 
 
 def main():
