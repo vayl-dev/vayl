@@ -1037,6 +1037,8 @@ class LLMMemory:
             ok, rs = evaluate_fact(p, policy, now)
             checked.append({**p, "ok": ok, "reasons": rs})
             reasons += rs
+        # one line per distinct reason: two pending proposals are one "disputed", not two
+        reasons = list(dict.fromkeys(reasons))
         return {"ok": len(reasons) == 0, "subject": subject, "reasons": reasons, "facts": checked}
 
     def safe_recall(self, question, policy=None, retrieve=None, k=None, now=None,
@@ -1066,6 +1068,7 @@ class LLMMemory:
             for s in self.statements:
                 if s.status == Status.FLAGGED and s.subject in subjects:
                     reasons.append(f"unresolved conflict on '{s.subject}' — the value is disputed")
+        reasons = list(dict.fromkeys(reasons))
         ok = len(reasons) == 0
         return {"ok": ok, "answer": answer if ok else None, "reasons": reasons, "used": active_used}
 

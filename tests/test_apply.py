@@ -749,3 +749,13 @@ def test_a_real_coexist_on_a_different_scope_keeps_both():
     act, _s, _v = m._apply(fact(action="COEXIST", value="MobX", scope="mobile"), "mobile uses MobX")
     assert act.value == "COEXIST"
     assert sorted(s.value for s in m.active()) == ["MobX", "Redux"]
+
+
+def test_check_reports_each_reason_once():
+    """Two unresolved proposals on one subject are one 'disputed' reason, not two identical lines."""
+    m = LLMMemory()
+    m._apply(fact(value="Redux"), "x")
+    m._apply(fact(action="FLAG", value="Zustand"), "maybe zustand")
+    m._apply(fact(action="FLAG", value="MobX"), "maybe mobx")
+    reasons = m.check("state")["reasons"]
+    assert len(reasons) == len(set(reasons)) and any("disputed" in r for r in reasons)

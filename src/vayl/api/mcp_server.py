@@ -26,6 +26,7 @@ import traceback
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from vayl import __version__
 from vayl.auth import auth
 from vayl.auth.auth import Auth
 from vayl.auth.auth import Capability as C
@@ -109,7 +110,7 @@ def _transport_security():
     }
 
 
-mcp = FastMCP("vayl")
+mcp = FastMCP("vayl", version=__version__)   # serverInfo.version; FastMCP's own otherwise
 _db_path = os.path.expanduser(os.environ.get("VAYL_DB", "vayl.db"))
 _store = Store(_db_path, graph=_maybe_graph())
 _metrics = Metrics(_store.db, _store.crypter)
@@ -560,11 +561,13 @@ def delete(subject: str, user_id: str = "default", agent_id: str = "", run_id: s
         nd = _decisions.redact(user_id, subject=subject, agent_id=agent_id, run_id=run_id)
         chain_hash = _audit.record("delete(erasure)", user_id, agent_id, run_id,
                                    f"subject={subject} rows={n} decisions_redacted={nd}")
+        if not n and not nd:
+            # The request is in the audit log; a signed receipt for erasing nothing would only be
+            # an unreported receipt number the caller never sees.
+            return f"No records found for '{subject}'."
         rec = receipts_mod.make_receipt(_signer, "delete", f"{user_id}/{agent_id}/{run_id}",
                                         subject, n, chain_hash)
         rid = _receipts.save(rec)
-        if not n and not nd:
-            return f"No records found for '{subject}'."
         return (f"Erased {n} record(s) for '{subject}'"
                 + (f"; redacted its values from {nd} decision snapshot(s)" if nd else "") + ".\n"
                 f"  signed erasure receipt #{rid} issued — verify with verify_receipt #{rid} "
@@ -729,8 +732,9 @@ def pending_changes(user_id: str = "default", agent_id: str = "", run_id: str = 
         for s in rows:
             proposed = (s.metadata or {}).get("pending", "?")
             cur = next((t.value for t in m.active() if t.id == s.supersedes), "(unknown)")
-            verb = "REMOVE" if proposed == "RETRACT" else "REPLACE"
-            lines.append(f"  #{s.id} {verb} {s.subject}: {cur!r} -> {s.value!r}"
+            change = (f"REMOVE {s.subject}: {cur!r}" if proposed == "RETRACT"   # no new value to show
+                      else f"REPLACE {s.subject}: {cur!r} -> {s.value!r}")
+            lines.append(f"  #{s.id} {change}"
                          + (f"\n        said: {s.raw[:120]!r}" if s.raw else ""))
         return (f"{len(rows)} change(s) awaiting approval:\n" + "\n".join(lines)
                 + "\n\nApprove with confirm_change(memory_id), discard with reject_change(memory_id).")
@@ -1074,7 +1078,10 @@ def configure_logging():
     handler.addFilter(_RequestIdFilter())
     handler.setFormatter(_JsonFormatter() if fmt == "json" else logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s"))
-    logging.basicConfig(level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(), handlers=[handler])
+    level = os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper()
+    if level not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        raise ValueError(f"VAYL_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL, got {level!r}")
+    logging.basicConfig(level=level, handlers=[handler])
 
 
 def startup():

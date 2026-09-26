@@ -110,3 +110,18 @@ def test_embedder_model_default_matches_the_openai_host_exactly(monkeypatch):
     assert _embed_config()[2] == "nomic-embed-text"          # look-alike host is not OpenAI
     monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     assert _embed_config()[2] == "text-embedding-3-small"
+
+
+def test_bad_log_level_and_oidc_role_map_name_their_variable(monkeypatch):
+    from vayl.api import mcp_server
+    from vayl.auth import sso
+    monkeypatch.setenv("VAYL_LOG_LEVEL", "verbose")
+    with pytest.raises(ValueError, match="VAYL_LOG_LEVEL must be"):
+        mcp_server.configure_logging()
+    for k, v in (("VAYL_OIDC_ISSUER", "https://idp"), ("VAYL_OIDC_AUDIENCE", "vayl"),
+                 ("VAYL_OIDC_JWKS_URL", "https://idp/jwks")):
+        monkeypatch.setenv(k, v)
+    for bad in ('{"admins": "admin"', '["admins"]'):          # malformed JSON, not an object
+        monkeypatch.setenv("VAYL_OIDC_ROLE_MAP", bad)
+        with pytest.raises(ValueError, match="VAYL_OIDC_ROLE_MAP must be a JSON object"):
+            sso.configured()

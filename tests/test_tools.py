@@ -194,5 +194,18 @@ def test_forget_on_a_gated_slot_reports_the_pending_proposal(uid, monkeypatch):
     out = s.forget("Remove the code status.", user_id=uid)
     assert out.startswith("Proposed for removal, awaiting approval") and "code_status" in out
     assert _active(uid) == ["full code"]                              # nothing applied yet
-    assert "1 change(s) awaiting approval" in s.pending_changes(user_id=uid)
+    pending = s.pending_changes(user_id=uid)
+    assert "1 change(s) awaiting approval" in pending
+    assert "REMOVE code_status: 'full code'" in pending and "->" not in pending   # no fake new value
     assert s.forget("Remove the code status.", user_id=uid).startswith("Already awaiting approval")
+
+
+def test_deleting_nothing_issues_no_receipt(uid):
+    before = s._store.db.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
+    assert s.delete("no_such_subject", user_id=uid) == "No records found for 'no_such_subject'."
+    assert s._store.db.execute("SELECT COUNT(*) FROM receipts").fetchone()[0] == before
+
+
+def test_server_reports_vayls_version():
+    import vayl
+    assert s.mcp.version == vayl.__version__
