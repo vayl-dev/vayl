@@ -61,9 +61,16 @@ def verify(receipt, public_key=None):
     return Signer.verify(pk, receipt["signature"], _canonical(receipt["payload"]))
 
 
+def _tenant():
+    # lazy, like the storage imports in Receipts.__init__
+    from vayl.storage.store import current_tenant
+    return current_tenant()
+
+
 class Receipts:
     """Persistence for issued receipts/attestations. Payload encrypted at rest; returned decrypted so
-    it stays verifiable. Not wiped by memory erasure — it IS the proof that erasure happened."""
+    it stays verifiable. Not wiped by memory erasure — it IS the proof that erasure happened. Rows are
+    stamped with the request's tenant; lookups, listings and purges only see that tenant's."""
     def __init__(self, db, crypter=None, signer=None):
         from vayl.storage.db import ensure
         from vayl.storage.migrations import migrate
@@ -86,14 +93,16 @@ class Receipts:
     def save(self, receipt):
         p = receipt["payload"]
         rid = self.db.insert_returning(
-            "INSERT INTO receipts(ts, kind, payload, signature, public_key) VALUES (?,?,?,?,?)",
-            (p.get("ts"), p.get("kind"), self._enc(_canonical(p)), receipt["signature"], receipt["public_key"]))
+            "INSERT INTO receipts(ts, kind, payload, signature, public_key, tenant_id) VALUES (?,?,?,?,?,?)",
+            (p.get("ts"), p.get("kind"), self._enc(_canonical(p)), receipt["signature"], receipt["public_key"],
+             _tenant()))
         self.db.commit()
         return rid
 
     def get(self, receipt_id):
         row = self.db.execute(
-            "SELECT id, payload, signature, public_key FROM receipts WHERE id=?", (int(receipt_id),)).fetchone()
+            "SELECT id, payload, signature, public_key FROM receipts WHERE id=? AND tenant_id=?",
+            (int(receipt_id), _tenant())).fetchone()
         if not row:
             return None
         payload = self._dec(row[1])
@@ -105,14 +114,16 @@ class Receipts:
 
     def list(self, limit=50):
         rows = self.db.execute(
-            "SELECT id, ts, kind FROM receipts ORDER BY id DESC LIMIT ?", (int(limit),)).fetchall()
+            "SELECT id, ts, kind FROM receipts WHERE tenant_id=? ORDER BY id DESC LIMIT ?",
+            (_tenant(), int(limit))).fetchall()
         return [{"id": r[0], "ts": r[1], "kind": r[2]} for r in rows]
 
     def for_user(self, user_id, limit=1000):
         """All receipts whose scope belongs to `user_id` — the data-subject-access (Art. 15) view.
         Scope is inside the encrypted payload, so this decrypts and filters."""
         out = []
-        for r in self.db.execute("SELECT id FROM receipts ORDER BY id DESC LIMIT ?", (int(limit),)).fetchall():
+        for r in self.db.execute("SELECT id FROM receipts WHERE tenant_id=? ORDER BY id DESC LIMIT ?",
+                                 (_tenant(), int(limit))).fetchall():
             rec = self.get(r[0])
             scope = ((rec or {}).get("payload") or {}).get("scope") or ""
             if scope == user_id or scope.startswith(user_id + "/"):
@@ -120,9 +131,9 @@ class Receipts:
         return out
 
     def purge(self, older_than_days):
-        """Retention (Art. 5(1)(e)): hard-delete receipts older than N days. Deployment-wide."""
+        """Retention (Art. 5(1)(e)): hard-delete this tenant's receipts older than N days."""
         cutoff = (datetime.datetime.now(datetime.timezone.utc)
                   - datetime.timedelta(days=float(older_than_days))).isoformat(timespec="seconds")
-        cur = self.db.execute("DELETE FROM receipts WHERE ts <= ?", (cutoff,))
+        cur = self.db.execute("DELETE FROM receipts WHERE ts <= ? AND tenant_id=?", (cutoff, _tenant()))
         self.db.commit()
         return cur.rowcount

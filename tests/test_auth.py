@@ -472,3 +472,95 @@ def test_only_the_source_itself_or_an_approver_may_write_as_a_trusted_source(mon
     assert s._may_write_as("fhir")
     as_role(Role.MEMBER)                                             # could approve it anyway
     assert s._may_write_as("fhir")
+
+
+# ══════════════════════════════════════════════════════════════════
+# tenant boundaries: administration and accountability tools
+# ══════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def fresh_auth(monkeypatch):
+    a = Auth(sqlite3.connect(":memory:"))
+    monkeypatch.setattr(s, "_auth", a)
+    return a
+
+
+def as_tenant_admin(tenant):
+    s.set_principal(Principal("p_" + tenant, tenant + "-admin", [Role.ADMIN], tenant=tenant))
+
+
+def test_a_tenant_admin_cannot_mint_a_key_in_another_tenant(fresh_auth):
+    as_tenant_admin("acme")
+    assert DENIED in s.create_principal("mole", role="admin", tenant="globex")
+    assert fresh_auth.list() == []
+    out = s.create_principal("bot", role="agent")                       # no tenant → the caller's
+    assert DENIED not in out and "tenant: acme" in out
+    assert DENIED not in s.create_principal("bot2", role="agent", tenant="acme")
+
+
+def test_the_operator_can_create_principals_in_any_tenant(fresh_auth):
+    as_role(Role.ADMIN)                                                 # an admin of the default tenant
+    assert "tenant: globex" in s.create_principal("g-admin", role="admin", tenant="globex")
+    s.set_principal(None)                                               # stdio → the local admin
+    assert "tenant: initech" in s.create_principal("i-admin", role="admin", tenant="initech")
+    assert "tenant: default" in s.create_principal("d-bot", role="agent")
+
+
+def test_list_and_revoke_principals_stay_inside_the_callers_tenant(fresh_auth):
+    theirs, key = fresh_auth.create("globex-bot", roles=Role.AGENT, tenant="globex")
+    ours, _ = fresh_auth.create("acme-bot", roles=Role.AGENT, tenant="acme")
+    as_tenant_admin("acme")
+    listing = s.list_principals()
+    assert "acme-bot" in listing and "globex-bot" not in listing
+    assert "No active principal" in s.revoke_principal(theirs.id)
+    assert "No principal" in s.revoke_principal(theirs.id, erase=True)
+    assert fresh_auth.verify(key) is not None                           # globex's key still works
+    assert "Revoked" in s.revoke_principal(ours.id)
+    as_role(Role.ADMIN)                                                 # the operator sees every tenant
+    listing = s.list_principals()
+    assert "globex-bot" in listing and "acme-bot" in listing
+
+
+def test_only_the_operator_may_purge_the_deployment_wide_audit_log():
+    as_tenant_admin("acme")
+    assert DENIED in s.purge_expired(36500, include_audit=True)
+    assert DENIED not in s.purge_expired(36500, include_decisions=True, include_receipts=True)
+    as_role(Role.ADMIN)
+    assert DENIED not in s.purge_expired(36500, include_audit=True)
+
+
+def test_purge_of_decisions_and_receipts_stays_inside_the_callers_tenant():
+    from vayl.licensing.receipts import make_receipt
+    as_tenant_admin("globex")
+    did, _ = s._decisions.record("globex decision", [], user_id="u")
+    rid = s._receipts.save(make_receipt(None, "delete", "u//", "x", 1, "h"))
+    as_tenant_admin("acme")
+    s.purge_expired(-1, include_decisions=True, include_receipts=True)
+    as_tenant_admin("globex")
+    assert s._decisions.get(did) is not None and s._receipts.get(rid) is not None
+
+
+def test_a_tenant_admin_does_not_see_deployment_wide_stats_or_seat_usage():
+    s._metrics.record_error("recall", "Boom", "globex customer secret")
+    as_tenant_admin("acme")
+    assert "globex customer secret" not in s.stats()
+    assert "principals in use" not in s.license_status()
+    as_role(Role.ADMIN)
+    assert "globex customer secret" in s.stats()
+    assert "principals in use" in s.license_status()
+
+
+def test_accountability_tools_stay_inside_the_callers_tenant():
+    from vayl.licensing.receipts import make_receipt
+    as_tenant_admin("acme")
+    did, _ = s._decisions.record("acme refund", [], user_id="u")
+    rid = s._receipts.save(make_receipt(None, "delete", "u//", "x", 1, "h"))
+    s._audit.record("remember", "u", detail="acme-only detail")
+    as_tenant_admin("globex")
+    assert "No decision" in s.explain_decision(did, user_id="u")
+    assert "No receipt" in s.verify_receipt(rid)
+    assert "acme-only detail" not in s.audit_log(user_id="u")
+    assert "acme-only detail" not in s.audit_log()
+    as_tenant_admin("acme")
+    assert "acme refund" in s.explain_decision(did, user_id="u")
+    assert "acme-only detail" in s.audit_log(user_id="u")

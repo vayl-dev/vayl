@@ -93,6 +93,12 @@ def test_audit_decisions_receipts_auth_metrics_on_postgres(pg):
     rc = Receipts(st.db, crypter, signer)
     rid = rc.save(make_receipt(signer, "delete", "acme//", "x", 1, "h"))     # RETURNING id
     assert verify_receipt(rc.get(rid)) is True
+    from vayl.storage.store import bind_tenant, reset_tenant
+    tok = bind_tenant("t-other")                                   # v3: decisions/receipts per tenant
+    try:
+        assert de.get(did) is None and rc.get(rid) is None and au.tail() == []
+    finally:
+        reset_tenant(tok)
 
     auth = Auth(st.db)
     p, key = auth.create("bot", roles=Role.AGENT)

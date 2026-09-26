@@ -7,10 +7,12 @@ icon: user-gear
 
 Tools for running a team deployment (most require the `admin` capability). A `?` marks an optional argument.
 
+In a multi-tenant deployment, an admin manages only its own tenant. The **deployment operator** — an admin of the `default` tenant, including the local stdio admin — manages every tenant.
+
 ## create\_principal
 
 ```python
-create_principal(name, role?, kind?, scopes?)
+create_principal(name, role?, kind?, scopes?, tenant?)
 ```
 
 Create a user or agent and issue its API key (**shown once** — copy it now).
@@ -21,6 +23,7 @@ Create a user or agent and issue its API key (**shown once** — copy it now).
 | `role`   | `admin`, `member`, `agent`, `viewer`, or `auditor` (default `member`) |
 | `kind`   | `human`, `agent`, or `service`                                        |
 | `scopes` | `user_id`s this principal may touch — **required for multi-tenant**   |
+| `tenant` | the org partition for the key (default: your own). Only the deployment operator may name another tenant |
 
 ## list\_principals
 
@@ -28,7 +31,7 @@ Create a user or agent and issue its API key (**shown once** — copy it now).
 list_principals()
 ```
 
-List the deployment's principals and their roles. Never returns keys.
+List your tenant's principals and their roles (the deployment operator sees every tenant's). Never returns keys.
 
 ## revoke\_principal
 
@@ -36,7 +39,7 @@ List the deployment's principals and their roles. Never returns keys.
 revoke_principal(principal_id, erase?)
 ```
 
-Disable a principal — its API key stops working **immediately** on the next request. `erase=True` hard-deletes the record (Art. 17 for a team member).
+Disable a principal — its API key stops working **immediately** on the next request. `erase=True` hard-deletes the record (Art. 17 for a team member). A tenant admin can revoke only its own tenant's principals.
 
 ## license\_status
 
@@ -44,7 +47,7 @@ Disable a principal — its API key stops working **immediately** on the next re
 license_status()
 ```
 
-Show the edition (Community or licensed), seats used vs. allowed, expiry, and unlocked features.
+Show the edition (Community or licensed), seats used vs. allowed, expiry, and unlocked features. Seats are counted across every tenant, so only the deployment operator sees seats used.
 
 ## stats
 
@@ -54,7 +57,7 @@ stats()
 
 On-device KPIs — per-tool call counts, average latency, error counts, recent errors, and the distribution of reconciliation actions. Nothing leaves the machine.
 
-The **text** of recent errors is shown to admins only: it can carry memory content, and metrics span every tenant in the deployment. Other roles see the tool and the error type.
+The **text** of recent errors is shown to admins only: it can carry memory content, and metrics span every tenant in the deployment. Other roles see the tool and the error type. Callers outside the `default` tenant can't call `stats`, since its counters span every tenant.
 
 ## health
 

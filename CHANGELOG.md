@@ -29,6 +29,23 @@ All notable changes to Vayl are documented here. This project adheres to
   same `user_id` shared `recall_related` results, and erasing one tenant's user also removed the other
   tenant's edges. The namespace now starts with the tenant. `reproject_graph()` used to wipe the whole
   graph and replay only the current tenant; it now clears only that tenant's edges.
+- **Decisions, receipts and audit entries are isolated per tenant.** These tables had no tenant, so a
+  caller in one tenant could read another tenant's decision with `explain_decision`, verify its
+  receipts with `verify_receipt`, and list its entries with `audit_log`. Schema migration **v3** adds
+  a `tenant_id` column to each; every write is stamped with the caller's tenant and every lookup is
+  filtered by it. The audit hash chain doesn't cover the new column, so existing chains still verify.
+- **Retention purges stay inside the tenant.** `purge_expired(include_decisions / include_receipts)`
+  deleted every tenant's rows; it now deletes only the caller's tenant's. The audit log is one chain
+  for the whole deployment, so `include_audit` still purges it for every tenant, and now only the
+  deployment operator may use it.
+- **A tenant admin can no longer manage another tenant's principals.** An admin of one tenant could
+  create a principal (for example, an admin key) in any other tenant, list every tenant's principals,
+  and revoke any of them. A tenant admin now manages only its own tenant. The **deployment operator**
+  (an admin of the `default` tenant, which includes the local stdio admin) still manages every tenant.
+  `create_principal` defaults `tenant` to the caller's own.
+- **Deployment-wide numbers are for the operator only.** `stats` counts every tenant's activity, so
+  callers outside the `default` tenant are now denied it. `license_status` shows seats used only to
+  the operator, since seats are counted across tenants.
 
 ### Added
 - `vayl-migrate reproject-graph` rebuilds the graph for every tenant from the store.
@@ -40,6 +57,11 @@ All notable changes to Vayl are documented here. This project adheres to
 - **If the graph is enabled, run `vayl-migrate reproject-graph` once after upgrading.** Edges written
   before this release use the old namespace. Until they're rebuilt, `recall_related` doesn't find them
   and erasure doesn't remove them.
+- Migration v3 is additive. It adds a `tenant_id` column to `decisions`, `receipts` and `audit`, and
+  existing rows are stamped `default`, which is where a single-tenant deployment's rows belong. In a
+  multi-tenant deployment, rows written before the upgrade stay in `default`, so they're visible only
+  to the `default` tenant.
+- Single-tenant and stdio deployments behave as before.
 
 ## [0.6.0] — 2026-09-26
 

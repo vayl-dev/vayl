@@ -62,6 +62,12 @@ def bind_tenant(tenant):
 def reset_tenant(token):
     """Unbind the request's tenant (paired with bind_tenant in the transport middleware)."""
     _TENANT.reset(token)
+
+
+def current_tenant():
+    """The tenant bound for this request, else 'default'. For the accountability tables (decisions,
+    receipts, audit), which share the store's database but not a Store instance."""
+    return _TENANT.get() or "default"
 _EMBED_RAW_CHARS = 300                  # how much of the source sentence enters the vector
 
 

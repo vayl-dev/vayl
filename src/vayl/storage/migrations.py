@@ -107,9 +107,25 @@ def _v2_policy_per_tenant(db):
     db.execute("ALTER TABLE space_config_v2 RENAME TO space_config")
 
 
+def _v3_tenant_accountability(db):
+    """Stamp decisions, receipts and audit rows with the tenant. Without it, a decision id, receipt id
+    or audit_log listing from one tenant was readable by another, and a tenant's retention purge
+    deleted every tenant's decisions and receipts.
+
+    Additive: existing rows take the column default 'default', which is where a single-tenant
+    deployment's rows belong, and an older Vayl's inserts (which omit the column) land there too.
+    On audit the tenant is a filter column only; the hash chain does not cover it."""
+    for table in ("decisions", "receipts", "audit"):
+        db.add_column_if_missing(table, "tenant_id TEXT DEFAULT 'default'")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_decisions_tenant ON decisions(tenant_id, user_id, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant_id, id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit(tenant_id, user_id, seq)")
+
+
 MIGRATIONS = [
     (1, "baseline", _v1_baseline),
     (2, "policy-per-tenant", _v2_policy_per_tenant),
+    (3, "tenant-accountability", _v3_tenant_accountability),
 ]
 LATEST = MIGRATIONS[-1][0]
 _LOCK = "vayl:schema-migrations"

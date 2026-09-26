@@ -225,13 +225,31 @@ def test_v2_keeps_existing_policies_and_lets_tenants_share_a_user_id(tmp_path, m
                   "VALUES ('u1', '', '', '{\"mode\": \"REVIEW\"}', 'acme')")
         d.commit()
     d = Database(path)
-    assert migrations.migrate(d) == [2]
+    assert 2 in migrations.migrate(d)
     assert list(d.execute("SELECT tenant_id, user_id, policy FROM space_config")) == [
         ("acme", "u1", '{"mode": "REVIEW"}')]
     d.execute("INSERT INTO space_config(user_id, agent_id, run_id, policy, tenant_id) "
               "VALUES ('u1', '', '', '{\"mode\": \"AUTHORITY\"}', 'globex')")   # was a PK clash
     d.commit()
     assert d.execute("SELECT COUNT(*) FROM space_config").fetchone()[0] == 2
+
+
+def test_v3_stamps_existing_accountability_rows_with_the_default_tenant(tmp_path, monkeypatch):
+    from vayl.storage import migrations
+    path = str(tmp_path / "v.db")
+    with monkeypatch.context() as mp:                                    # a database still at v2
+        mp.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:2])
+        mp.setattr(migrations, "LATEST", 2)
+        d = Database(path)
+        migrations.migrate(d)
+        d.execute("INSERT INTO decisions(ts, user_id, summary) VALUES ('t', 'u', 's')")
+        d.execute("INSERT INTO receipts(ts, kind, payload) VALUES ('t', 'k', 'p')")
+        d.execute("INSERT INTO audit(ts, user_id, action) VALUES ('t', 'u', 'a')")
+        d.commit()
+    d = Database(path)
+    assert 3 in migrations.migrate(d)
+    for table in ("decisions", "receipts", "audit"):
+        assert list(d.execute(f"SELECT tenant_id FROM {table}")) == [("default",)], table
 
 
 def test_cli_reproject_graph_refuses_without_a_graph(tmp_path, monkeypatch, capsys):

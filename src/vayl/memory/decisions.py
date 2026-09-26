@@ -10,7 +10,8 @@ Because facts change, the snapshot is IMMUTABLE: it records what was believed at
 erased. Each decision is content-hashed and Ed25519-signed (when a signer is attached), so the record
 itself is tamper-evident — a decision receipt, not just a log line.
 
-Stored in the same SQLite DB; summary + snapshot are encrypted at rest when encryption is on.
+Stored in the same SQLite DB; summary + snapshot are encrypted at rest when encryption is on. Rows are
+stamped with the request's tenant and every read, redaction and purge is confined to it.
 """
 import datetime
 import hashlib
@@ -18,6 +19,7 @@ import json
 
 from vayl.storage.db import ensure
 from vayl.storage.migrations import migrate
+from vayl.storage.store import current_tenant
 
 REDACTED = "[redacted — Art. 17 erasure]"
 
@@ -59,9 +61,10 @@ class Decisions:
         digest = self._digest(ts, user_id, agent_id, run_id, summary, snap, anchor)
         signature = self.signer.sign(digest) if self.signer else None
         did = self.db.insert_returning(
-            "INSERT INTO decisions(ts, user_id, agent_id, run_id, summary, snapshot, anchor, entry_hash, signature) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
-            (ts, user_id, agent_id, run_id, self._enc(summary), self._enc(snap), anchor, digest, signature))
+            "INSERT INTO decisions(ts, user_id, agent_id, run_id, summary, snapshot, anchor, entry_hash, "
+            "signature, tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (ts, user_id, agent_id, run_id, self._enc(summary), self._enc(snap), anchor, digest, signature,
+             current_tenant()))
         self.db.commit()
         return did, digest
 
@@ -69,8 +72,8 @@ class Decisions:
         """Reconstruct one decision: its summary, the immutable belief snapshot, and whether the
         signed receipt still verifies. Returns None if not found (or not in this user's scope)."""
         q = ("SELECT id, ts, user_id, agent_id, run_id, summary, snapshot, anchor, entry_hash, signature "
-             "FROM decisions WHERE id=?")
-        p = [int(decision_id)]
+             "FROM decisions WHERE id=? AND tenant_id=?")
+        p = [int(decision_id), current_tenant()]
         if user_id is not None:
             q += " AND user_id=?"; p.append(user_id)
         row = self.db.execute(q, p).fetchone()
@@ -102,8 +105,8 @@ class Decisions:
         Each modified decision is re-signed over its redacted content, so verification still passes
         and the belief carries an explicit `redacted` marker. Returns decisions modified."""
         q = ("SELECT id, ts, user_id, agent_id, run_id, summary, snapshot, anchor "
-             "FROM decisions WHERE user_id=?")
-        p = [user_id]
+             "FROM decisions WHERE user_id=? AND tenant_id=?")
+        p = [user_id, current_tenant()]
         if agent_id is not None:
             q += " AND agent_id=?"; p.append(agent_id)
         if run_id is not None:
@@ -138,22 +141,20 @@ class Decisions:
         return n
 
     def purge(self, older_than_days):
-        """Retention (Art. 5(1)(e)): hard-delete decisions older than N days. Deployment-wide."""
+        """Retention (Art. 5(1)(e)): hard-delete this tenant's decisions older than N days."""
         cutoff = (datetime.datetime.now(datetime.timezone.utc)
                   - datetime.timedelta(days=float(older_than_days))).isoformat(timespec="seconds")
-        cur = self.db.execute("DELETE FROM decisions WHERE ts <= ?", (cutoff,))
+        cur = self.db.execute("DELETE FROM decisions WHERE ts <= ? AND tenant_id=?", (cutoff, current_tenant()))
         self.db.commit()
         return cur.rowcount
 
     def list(self, user_id=None, agent_id=None, run_id=None, limit=50):
         """Recent decisions for a space (newest first) — id, timestamp, summary."""
-        conds, p = [], []
+        conds, p = ["tenant_id=?"], [current_tenant()]
         for col, val in (("user_id", user_id), ("agent_id", agent_id), ("run_id", run_id)):
             if val is not None:
                 conds.append(f"{col}=?"); p.append(val)
-        q = "SELECT id, ts, summary FROM decisions"
-        if conds:
-            q += " WHERE " + " AND ".join(conds)
+        q = "SELECT id, ts, summary FROM decisions WHERE " + " AND ".join(conds)
         q += " ORDER BY id DESC LIMIT ?"; p.append(int(limit))
         return [{"id": r[0], "ts": r[1], "summary": self._dec(r[2])}
                 for r in self.db.execute(q, p).fetchall()]

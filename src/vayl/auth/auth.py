@@ -182,26 +182,38 @@ class Auth:
                          scopes=_parse_scopes(json.loads(row[5]) if row[5] else None),
                          tenant=str(row[6] or "default"))
 
-    def revoke(self, principal_id):
+    # `tenant` on revoke/delete/list confines the call to that tenant's principals; None means every
+    # tenant (the deployment operator). A NULL tenant column is a pre-tenant row, i.e. 'default'.
+    _IN_TENANT = " AND COALESCE(tenant, 'default')=?"
+
+    def revoke(self, principal_id, tenant=None):
         """Disable a principal (its key stops working immediately). Returns True if one was disabled."""
-        cur = self.db.execute("UPDATE principals SET disabled=1 WHERE id=? AND disabled=0", (principal_id,))
+        q, p = "UPDATE principals SET disabled=1 WHERE id=? AND disabled=0", [principal_id]
+        if tenant is not None:
+            q += self._IN_TENANT; p.append(tenant)
+        cur = self.db.execute(q, p)
         self.db.commit()
         return cur.rowcount > 0
 
-    def delete(self, principal_id):
+    def delete(self, principal_id, tenant=None):
         """HARD-delete a principal row (Art. 17 for team members) — unlike revoke, nothing is
         retained. Returns True if a row was removed."""
-        cur = self.db.execute("DELETE FROM principals WHERE id=?", (principal_id,))
+        q, p = "DELETE FROM principals WHERE id=?", [principal_id]
+        if tenant is not None:
+            q += self._IN_TENANT; p.append(tenant)
+        cur = self.db.execute(q, p)
         self.db.commit()
         return cur.rowcount > 0
 
-    def list(self):
-        rows = self.db.execute(
-            "SELECT id, name, kind, roles, disabled, created_at, scopes FROM principals "
-            "ORDER BY created_at").fetchall()
+    def list(self, tenant=None):
+        q, p = ("SELECT id, name, kind, roles, disabled, created_at, scopes, tenant FROM principals "
+                "WHERE 1=1"), []
+        if tenant is not None:
+            q += self._IN_TENANT; p.append(tenant)
+        rows = self.db.execute(q + " ORDER BY created_at", p).fetchall()
         return [{"id": r[0], "name": self._dec_name(r[1]), "kind": r[2], "roles": json.loads(r[3] or "[]"),
                  "disabled": bool(r[4]), "created_at": r[5],
-                 "scopes": json.loads(r[6]) if r[6] else []} for r in rows]
+                 "scopes": json.loads(r[6]) if r[6] else [], "tenant": r[7] or "default"} for r in rows]
 
     def count_active(self):
         return self.db.execute("SELECT COUNT(*) FROM principals WHERE disabled=0").fetchone()[0]

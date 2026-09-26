@@ -539,3 +539,44 @@ def test_legacy_plaintext_principal_rows_still_readable():
     p, _ = plain.create("legacy-bot", roles=Role.AGENT)
     enc = Auth(db, crypter=Crypter(b"5" * 32))                         # later, encryption enabled
     assert any(r["name"] == "legacy-bot" for r in enc.list())
+
+
+# ══════════════════════════════════════════════════════════════════
+# tenant partitioning of the accountability tables
+# ══════════════════════════════════════════════════════════════════
+
+def _in(tenant, fn):
+    tok = store_mod.bind_tenant(tenant)
+    try:
+        return fn()
+    finally:
+        store_mod.reset_tenant(tok)
+
+
+def test_decisions_are_partitioned_by_tenant():
+    d = Decisions(_db())
+    did, _ = _in("acme", lambda: d.record("acme acted", [{"subject": "s", "value": "secret"}], user_id="u"))
+    assert _in("globex", lambda: d.get(did, user_id="u")) is None       # same user_id, other tenant
+    assert _in("globex", lambda: d.list(user_id="u")) == []
+    assert _in("globex", lambda: d.redact("u")) == 0                    # globex's erasure leaves acme's
+    assert _in("globex", lambda: d.purge(older_than_days=-1)) == 0
+    assert _in("acme", lambda: d.get(did, user_id="u"))["beliefs"][0]["value"] == "secret"
+
+
+def test_receipts_are_partitioned_by_tenant():
+    rc = Receipts(_db())
+    rid = _in("acme", lambda: rc.save(make_receipt(None, "delete", "u//", "x", 1, "h")))
+    assert _in("globex", lambda: rc.get(rid)) is None
+    assert _in("globex", rc.list) == [] and _in("globex", lambda: rc.for_user("u")) == []
+    assert _in("globex", lambda: rc.purge(older_than_days=-1)) == 0
+    assert _in("acme", lambda: rc.get(rid))["payload"]["subject"] == "x"
+
+
+def test_audit_rows_are_partitioned_by_tenant_but_share_one_chain():
+    a = Audit(_db(), signer=Signer(b"t" * 32))
+    _in("acme", lambda: a.record("remember", "u", detail="acme secret"))
+    _in("globex", lambda: a.record("remember", "u", detail="globex secret"))
+    assert [r["detail"] for r in _in("globex", lambda: a.tail(user_id="u"))] == ["globex secret"]
+    assert [r["detail"] for r in _in("globex", a.tail)] == ["globex secret"]
+    assert len(a.tail(all_tenants=True)) == 2
+    assert a.verify_chain()["ok"] is True                               # tenant is not in the hash

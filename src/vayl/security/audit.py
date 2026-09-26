@@ -13,6 +13,11 @@ so editing, deleting, or reordering any row breaks the chain and `verify_chain()
 When a signer is attached, each entry_hash is also Ed25519-signed, so a third party can verify the
 log's integrity WITHOUT the secret key. This is what lets Vayl prove "this is what was known, and
 when" rather than merely assert it.
+
+TENANTS: there is ONE chain per deployment, interleaved across tenants. Each row is stamped with the
+request's tenant (`tenant_id`) so listings can be confined to it, but tenant_id is a FILTER column only:
+it is not part of the chain hash (adding it would break verification of every chain written before),
+so verify_chain() and purge() stay deployment-wide.
 """
 import datetime
 import hashlib
@@ -20,6 +25,7 @@ import json
 
 from vayl.storage.db import ensure
 from vayl.storage.migrations import migrate
+from vayl.storage.store import current_tenant
 
 GENESIS = "0" * 64   # prev_hash of the first chained row (no predecessor)
 _SIG_TAG = "vayl.audit.v1|"        # domain tag on each entry signature (no cross-artifact replay)
@@ -75,10 +81,11 @@ class Audit:
             entry = hashlib.sha256(
                 (prev + "|" + self._canonical(ts, user_id, agent_id, run_id, action, stored)).encode()).hexdigest()
             signature = self.signer.sign(_SIG_TAG + entry) if self.signer else None
+            # tenant_id is stored beside the row, outside the hashed content (see the module docstring)
             self.db.execute(
-                "INSERT INTO audit(ts, user_id, agent_id, run_id, action, detail, prev_hash, entry_hash, signature) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
-                (ts, user_id, agent_id, run_id, action, stored, prev, entry, signature))
+                "INSERT INTO audit(ts, user_id, agent_id, run_id, action, detail, prev_hash, entry_hash, "
+                "signature, tenant_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (ts, user_id, agent_id, run_id, action, stored, prev, entry, signature, current_tenant()))
             self._write_head_checkpoint(entry)       # signed (count-free) head → detects tail truncation
             self.db.commit()
         return entry   # the chain head after this write — callers can anchor a receipt to it
@@ -104,14 +111,20 @@ class Audit:
                 return "(undecryptable — key changed?)"
         return d
 
-    def tail(self, limit=50, user_id=None):
-        q = "SELECT ts, user_id, agent_id, run_id, action, detail FROM audit"
-        p = []
+    def tail(self, limit=50, user_id=None, all_tenants=False):
+        """Newest entries of the current tenant (optionally one user_id's). `all_tenants` lists across
+        every tenant — for the deployment operator only; the caller decides who that is."""
+        conds, p = [], []
+        if not all_tenants:
+            conds.append("tenant_id=?"); p.append(current_tenant())
         if user_id is not None:
-            q += " WHERE user_id=?"; p.append(user_id)
+            conds.append("user_id=?"); p.append(user_id)
+        q = "SELECT ts, user_id, agent_id, run_id, action, detail, tenant_id FROM audit"
+        if conds:
+            q += " WHERE " + " AND ".join(conds)
         q += " ORDER BY seq DESC LIMIT ?"; p.append(int(limit))
         return [{"ts": r[0], "user_id": r[1], "agent_id": r[2], "run_id": r[3],
-                 "action": r[4], "detail": self._detail(r[5])}
+                 "action": r[4], "detail": self._detail(r[5]), "tenant": r[6]}
                 for r in self.db.execute(q, p).fetchall()]
 
     def head_hash(self):
