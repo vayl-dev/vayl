@@ -93,7 +93,10 @@ Everything else Vayl does is **stdlib**: `sqlite3`, `hashlib`, `hmac`, `secrets`
 stdlib. No `eval`/`exec`/`pickle`/`yaml.load`/`subprocess`/`shell` anywhere in the product code.
 
 - **Minimal install** (`pip install .`) is just `mcp` + `cryptography`.
-- **CVEs:** `pip-audit` reports **no known vulnerabilities**; it runs in CI (advisory) on every push.
+- **CVEs:** `pip-audit` runs in CI on every push and pull request, and a known vulnerability fails the
+  build.
+- **Secrets:** GitHub secret scanning with push protection is on for this repository, so a push that
+  contains a recognised credential is rejected.
 - **Recommended for production:** pin exact versions (a lockfile / hash-pinned constraints) and gate
   releases on `pip-audit`.
 - **The one place to resist "build your own":** cryptography and JWT/JWKS verification. Everywhere else,
