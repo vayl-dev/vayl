@@ -209,17 +209,15 @@ print(m.pending_changes())
 ```
 
 ```
-Nothing matching to retract (that fact isn't currently stored).
+Proposed for removal, awaiting approval (the value stays current until someone approves it with confirm_change; see pending_changes): active_medication = metformin 500 mg PO twice daily
 1 change(s) awaiting approval:
-  #6 REMOVE active_medication: 'metformin 500 mg PO twice daily' -> 'metformin 500 mg PO twice daily'
+  #6 REMOVE active_medication: 'metformin 500 mg PO twice daily'
         said: 'Stop the metformin'
 
 Approve with confirm_change(memory_id), discard with reject_change(memory_id).
 ```
 
-{% hint style="warning" %}
-The first line is misleading: `forget` did queue a removal proposal, as `pending_changes()` shows. On a confirm-gated slot, always check the queue after `forget`.
-{% endhint %}
+Running the same `forget` again doesn't queue a second proposal; it replies `Already awaiting approval (see pending_changes): active_medication`.
 
 Metformin stays active until someone decides. The team decides against stopping it on the strength of a note:
 

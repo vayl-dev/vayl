@@ -40,16 +40,19 @@ create_principal("acme-bot", role="agent", tenant="acme")
 create_principal("globex-bot", role="agent", tenant="globex")
 ```
 
+Naming a tenant takes the **deployment operator**: an admin of the `default` tenant, such as the local stdio admin. `tenant` defaults to the caller's own, so an admin of `acme` creates `acme` principals and gets `Access denied: you can only create principals in your own tenant.` for any other.
+
 A key for `acme` can't read `globex` memory, even when both pass `user_id="u1"`. Every memory row is stamped with its tenant and every memory query filters on it.
 
 * **stdio (`vayl-mcp`)** has no principal bound, so it always uses the `default` tenant.
 * **SSO principals** are always in the `default` tenant. Confine them with `VAYL_OIDC_SCOPE_CLAIM` instead. See [Authentication and access](authentication-and-access.md#sso-with-oidc).
-* **Deployment-wide admin tools** are not tenant-scoped: `list_principals` lists every principal, and `purge_expired`'s `include_audit`/`include_decisions`/`include_receipts` flags act on the whole deployment.
+* **Accountability records** are stamped with the tenant too: `explain_decision`, `verify_receipt` and `audit_log` only see the caller's tenant, and `purge_expired`'s `include_decisions`/`include_receipts` purge only the caller's tenant.
+* **Admin tools** stay inside the admin's tenant: `list_principals` and `revoke_principal` reach only its own principals. The deployment operator manages every tenant. `stats` is deployment-wide, so it's denied outside `default`, and `include_audit` purges the one audit chain every tenant shares, so only the operator may use it. See [The deployment operator](authentication-and-access.md#the-deployment-operator).
 
 Reconcile policies and graph edges are partitioned by tenant too: the policy table is keyed by `(tenant, user_id, agent_id, run_id)`, and every Neo4j edge's namespace starts with the tenant.
 
 {% hint style="warning" %}
-**Upgrading from 0.6 or earlier?** Before 0.7, policies and graph edges were not keyed by tenant, so tenants sharing a `user_id` could overwrite each other's policy and share `recall_related` edges. Schema migration v2 fixes the policy table on first start (back up first). With the graph enabled, also run [`vayl-migrate reproject-graph`](../reference/cli.md#vayl-migrate-reproject-graph) once to rebuild edges under the new namespace.
+**Upgrading from 0.6 or earlier?** Before 0.7, policies and graph edges were not keyed by tenant, so tenants sharing a `user_id` could overwrite each other's policy and share `recall_related` edges. Decisions, receipts and audit entries had no tenant either, and a tenant admin could manage other tenants' principals. Schema migration v2 fixes the policy table on first start (back up first; it isn't additive), and v3 adds a tenant to decisions, receipts and audit entries. Rows written before v3 are stamped `default`, so in a multi-tenant deployment they're visible only to the `default` tenant. With the graph enabled, also run [`vayl-migrate reproject-graph`](../reference/cli.md#vayl-migrate-reproject-graph) once to rebuild edges under the new namespace.
 {% endhint %}
 
 ## What isolation guarantees

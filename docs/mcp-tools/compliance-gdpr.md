@@ -5,7 +5,7 @@ icon: scale-balanced
 
 # Compliance (GDPR)
 
-These four tools cover data-subject rights: erasure (Art. 17), access and portability (Art. 15/20), and storage limitation (Art. 5(1)(e)). Erasures are hard deletes, history included, and each one issues a signed receipt you can check with [`verify_receipt`](accountability.md#verify_receipt).
+These four tools cover data-subject rights: erasure (Art. 17), access and portability (Art. 15/20), and storage limitation (Art. 5(1)(e)). Erasures are hard deletes, history included, and each one that erases something issues a signed receipt you can check with [`verify_receipt`](accountability.md#verify_receipt).
 
 All four take the memory-space arguments `user_id="default"`, `agent_id=""`, `run_id=""`. Outputs below were captured by running the tools offline.
 
@@ -37,7 +37,7 @@ Erased 1 record(s) for 'refund_window'; redacted its values from 1 decision snap
   signed erasure receipt #3 issued — verify with verify_receipt #3 (or independently with the public key from export_public_key).
 ```
 
-When nothing matches, it returns `No records found for 'refund_window'.` A receipt is still written in that case.
+When nothing matches, it returns `No records found for 'refund_window'.` and issues no receipt; the request is still recorded in the audit log.
 
 ## delete\_all
 
@@ -64,7 +64,7 @@ When snapshots were redacted, the count line adds `; values redacted from N deci
 export_memory(user_id: str = "default", agent_id: str = "", run_id: str = "") -> str
 ```
 
-Returns everything held about a space as JSON, for a subject access or portability request: every statement (active and history), plus the decision snapshots, audit entries (up to 1,000 each) and receipts for that `user_id`. Needs only `read`, and is scope-checked like any read. The export itself is audited.
+Returns everything held about a space as JSON, for a subject access or portability request: every statement (active and history), plus the decision snapshots, audit entries (up to 1,000 each) and receipts for that `user_id` in the caller's tenant. Needs only `read`, and is scope-checked like any read. The export itself is audited.
 
 ```json
 {
@@ -83,9 +83,9 @@ Returns everything held about a space as JSON, for a subject access or portabili
   ],
   "audit": [
     {"ts": "2026-09-26T12:20:13+00:00", "user_id": "cust_5521", "agent_id": "", "run_id": "",
-     "action": "record_decision", "detail": "Issued refund to order #91"},
+     "action": "record_decision", "detail": "Issued refund to order #91", "tenant": "default"},
     {"ts": "2026-09-26T12:20:13+00:00", "user_id": "cust_5521", "agent_id": "", "run_id": "",
-     "action": "remember", "detail": "[policy-bot] ADD refund_window"}
+     "action": "remember", "detail": "[policy-bot] ADD refund_window", "tenant": "default"}
   ],
   "receipts": []
 }
@@ -108,12 +108,18 @@ Purged 0 record(s) older than 365 days.
 ```
 
 {% hint style="danger" %}
-**The `include_*` flags are deployment-wide.** They are not limited to `user_id`: `include_decisions` and `include_receipts` purge those tables for every user and tenant, and `include_audit` deletes old audit rows across the whole deployment. The return says so:
+**The `include_*` flags aren't limited to `user_id`.** `include_decisions` and `include_receipts` purge those tables for the caller's whole tenant. `include_audit` deletes old audit rows across the whole deployment, because the audit log is one chain shared by every tenant.
 
 ```
-Purged 0 record(s) older than 3650 days. Also purged (deployment-wide): decisions=0, receipts=0.
+Purged 0 record(s) older than 3650 days. Also purged: decisions=0, receipts=0.
 ```
 {% endhint %}
+
+Only the deployment operator (an admin of the `default` tenant, including the local stdio admin) may pass `include_audit=True`. Anyone else gets this, and the attempt is audited:
+
+```
+Access denied: the audit log is shared by every tenant, so only the deployment operator may purge it (include_audit).
+```
 
 `include_audit=True` deletes from the head of the audit chain and writes a signed retention anchor, so `verify_audit` keeps passing on the rows that remain. Deleted audit entries are gone for good; export them first if you must keep them.
 

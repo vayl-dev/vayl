@@ -135,6 +135,8 @@ Community edition — up to 3 principals. No license installed.
   principals in use: 1 / 3
 ```
 
+That's the reply for an admin key in the `default` tenant. Any other key gets `(seat usage is visible to the deployment operator)` in place of the second line.
+
 Or one JSON-RPC call with curl:
 
 ```bash

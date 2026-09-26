@@ -38,7 +38,7 @@ The return lists one `[ACTION] subject = value` entry per extracted fact. The ac
 | `FLAG` | Surfaced, not applied: an ambiguous or low-confidence change, a future-tense statement, a cross-source conflict under `AUTHORITY`/`REVIEW`, or a change to a confirm-required slot. | `Stored: [FLAG] hosting = Fly.io` |
 | `ARCHIVE` | A past-tense statement; recorded as history, never active. | `Stored: [ARCHIVE] hosting = Heroku` |
 | `RETRACT` | A removal with no replacement. | `Stored: [RETRACT] primary_database = Postgres` |
-| `SKIP` | Not a durable fact (hypothetical, sarcasm). Nothing is stored despite the `Stored:` prefix. | `Stored: [SKIP] language = Rust` |
+| `SKIP` | Not a durable fact (hypothetical, sarcasm). Nothing is stored, and it's reported on its own line. | `Not stored (hypothetical, sarcasm, or nothing to change): language = Rust` |
 
 When the text holds no durable fact at all:
 
@@ -133,6 +133,18 @@ When nothing current matches:
 
 ```
 Nothing matching to retract (that fact isn't currently stored).
+```
+
+On a slot declared with `"confirm": true`, a removal is proposed, not applied. The value stays current until someone approves it:
+
+```
+Proposed for removal, awaiting approval (the value stays current until someone approves it with confirm_change; see pending_changes): code_status = full code
+```
+
+Asking again while that proposal is pending doesn't queue a second one:
+
+```
+Already awaiting approval (see pending_changes): code_status
 ```
 
 `forget` retains history. To erase data for privacy, use [`delete`](compliance-gdpr.md#delete).

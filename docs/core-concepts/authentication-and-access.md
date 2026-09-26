@@ -29,7 +29,7 @@ A **principal** is an identity: a person, an agent or a service. Each has one ro
 Create a principal with the `create_principal` tool (requires `admin`):
 
 ```
-create_principal(name, role="member", kind="agent", scopes="", tenant="default")
+create_principal(name, role="member", kind="agent", scopes="", tenant="")
 ```
 
 | Argument | Values |
@@ -38,7 +38,7 @@ create_principal(name, role="member", kind="agent", scopes="", tenant="default")
 | `role` | `admin`, `member`, `agent`, `viewer`, `auditor` |
 | `kind` | Free-text label, conventionally `human`, `agent` or `service` |
 | `scopes` | Comma-separated `user_id`s the key may touch. Empty means unrestricted. |
-| `tenant` | The organization partition. See [Memory spaces and tenants](memory-spaces.md#tenants). |
+| `tenant` | The organization partition. Empty means the caller's own tenant; only the [deployment operator](#the-deployment-operator) may name another. See [Memory spaces and tenants](memory-spaces.md#tenants). |
 
 It returns a string, not a tuple:
 
@@ -52,13 +52,13 @@ On a fresh server there are no principals yet. Bootstrap the first admin over st
 
 ### Seat limit
 
-Each active (not revoked) principal counts as a seat. The Community edition allows 3. A licensed edition allows the number of seats in its license. Past the limit, `create_principal` returns:
+Each active (not revoked) principal counts as a seat, in every tenant. The Community edition allows 3. A licensed edition allows the number of seats in its license. Past the limit, `create_principal` returns:
 
 ```
 Seat limit reached: 3 active principal(s) allowed on the community edition. Revoke an unused principal, or install a license with more seats (see mint_license.py / VAYL_LICENSE).
 ```
 
-`license_status` shows the edition and `principals in use: N / cap`. SSO users are not stored as principals and don't take seats.
+`license_status` shows the edition, and to the [deployment operator](#the-deployment-operator) also `principals in use: N / cap`. Seats are counted across every tenant. SSO users are not stored as principals and don't take seats.
 
 ### Revoking and erasing
 
@@ -69,7 +69,7 @@ revoke_principal(principal_id, erase=False)
 * `erase=False` disables the principal. Its key stops working immediately, and the record is kept, marked disabled. Returns `Revoked <id> — its API key no longer works.`
 * `erase=True` hard-deletes the principal record, for team-member erasure requests. Returns `Erased <id> — key revoked and the principal record hard-deleted.`
 
-Both are irreversible and both are audited. `list_principals` shows every principal, disabled ones included, and never shows keys.
+Both are irreversible and both are audited. `list_principals` shows the tenant's principals (every tenant's, for the deployment operator), disabled ones included, and never shows keys.
 
 ## Roles and capabilities
 
@@ -96,15 +96,40 @@ Every tool requires exactly one capability:
 
 A few tools add a check of their own on top:
 
-* `audit_log` with no `user_id` returns the deployment-wide log and requires `admin`. With a `user_id` it is scope-checked like any memory tool.
+* `audit_log` with no `user_id` requires `admin` and returns the caller's tenant's log; only the deployment operator's view spans every tenant. With a `user_id` it is scope-checked like any memory tool.
 * `verify_receipt` on a receipt with no `user_id` requires `admin`. A scoped receipt must be inside the caller's scope.
 * `remember` with a trusted `source` needs a matching key or `approve`. See [Trusted sources](#trusted-sources).
+* `create_principal` into another tenant, `stats`, seat usage in `license_status`, and `purge_expired(include_audit=True)` are for the deployment operator. See [The deployment operator](#the-deployment-operator).
 
 A missing capability returns, for example:
 
 ```
 Access denied: 'confirm_change' requires the 'approve' capability; your role(s) ['agent'] do not grant it.
 ```
+
+### The deployment operator
+
+On a deployment with several tenants, most admin work stays inside the admin's own tenant. The **deployment operator** is an admin of the `default` tenant. The local stdio admin is one, and so is an SSO user mapped to `admin`, because SSO principals are always in `default`. Only the operator reaches across tenants:
+
+| Tool | Deployment operator | Admin of another tenant |
+| --- | --- | --- |
+| `create_principal` | Any tenant (default: `default`) | Own tenant only |
+| `list_principals` | Every tenant's principals, tagged `tenant=<name>` outside `default` | Own tenant's |
+| `revoke_principal` | Any principal | Own tenant's; another tenant's id reads as unknown |
+| `license_status` | Includes `principals in use: N / cap` | No seat usage |
+| `stats` | Allowed | Denied, as for every caller outside `default` |
+| `audit_log` with no `user_id` | Every tenant, tagged `tenant=<name>` outside `default` | Own tenant's entries |
+| `purge_expired(include_audit=True)` | Allowed | Denied |
+
+Decisions and receipts are confined to the caller's tenant for everyone, the operator included: `explain_decision` and `verify_receipt` only find rows recorded in the caller's tenant. The denials read:
+
+```
+Access denied: you can only create principals in your own tenant.
+Access denied: stats are deployment-wide; ask the deployment operator.
+Access denied: the audit log is shared by every tenant, so only the deployment operator may purge it (include_audit).
+```
+
+On a single-tenant deployment every principal is in `default`, so every admin is the operator and nothing changes.
 
 ### The approve capability
 
@@ -157,7 +182,7 @@ A principal created without scopes can reach every `user_id` in its tenant. In a
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `VAYL_OIDC_ROLE_CLAIM` | `groups` | Claim holding the user's groups (a list or a single string) |
-| `VAYL_OIDC_ROLE_MAP` | `{}` | JSON `{"<idp group>": "<vayl role>"}`, for example `{"vayl-admins": "admin", "eng": "member"}` |
+| `VAYL_OIDC_ROLE_MAP` | `{}` | JSON `{"<idp group>": "<vayl role>"}`, for example `{"vayl-admins": "admin", "eng": "member"}`. Anything other than a JSON object stops `vayl-server` at startup. |
 | `VAYL_OIDC_DEFAULT_ROLE` | `viewer` | Role for a user with no mapped group |
 | `VAYL_OIDC_SCOPE_CLAIM` | unset | Claim holding the `user_id`s the user may touch (a list or CSV). Unset means unrestricted. |
 

@@ -56,7 +56,7 @@ Authorization beyond that (capability and scope) happens inside the tool and com
 
 ## Call a tool with curl
 
-This session was run against a real `vayl-server` 0.6.0 on a temporary database, with the key redacted.
+This session was run against a real `vayl-server` 0.7.0 on a temporary database, with the key redacted.
 
 {% stepper %}
 {% step %}
@@ -106,10 +106,10 @@ x-request-id: docs-demo-1
 Transfer-Encoding: chunked
 
 event: message
-data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"experimental":{},"logging":{},"prompts":{"listChanged":true},"resources":{"subscribe":false,"listChanged":true},"tools":{"listChanged":true},"extensions":{"io.modelcontextprotocol/ui":{}}},"serverInfo":{"name":"vayl","version":"3.4.5"}}}
+data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{"experimental":{},"logging":{},"prompts":{"listChanged":true},"resources":{"subscribe":false,"listChanged":true},"tools":{"listChanged":true},"extensions":{"io.modelcontextprotocol/ui":{}}},"serverInfo":{"name":"vayl","version":"0.7.0"}}}
 ```
 
-`serverInfo.version` is the FastMCP library version, not Vayl's; use `vayl-server --version` for that. Because the server is stateless, you can call `tools/list` or `tools/call` without initializing first.
+`serverInfo.version` is Vayl's version, the same as `vayl-server --version` prints. Because the server is stateless, you can call `tools/list` or `tools/call` without initializing first.
 {% endstep %}
 
 {% step %}
@@ -126,7 +126,7 @@ curl -si -X POST http://127.0.0.1:8080/mcp \
 ```
 HTTP/1.1 200 OK
 content-type: text/event-stream
-x-request-id: 5fd51e41e514fbcd
+x-request-id: 5bfe3bb7bab2c7bb
 
 event: message
 data: {"jsonrpc":"2.0","id":2,"result":{"_meta":{"fastmcp":{"wrap_result":true}},"content":[{"type":"text","text":"(no memories yet)"}],"structuredContent":{"result":"(no memories yet)"},"isError":false}}

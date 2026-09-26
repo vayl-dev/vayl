@@ -30,7 +30,7 @@ A [memory space](../core-concepts/memory-spaces.md) is the triple `(user_id, age
 
 | Takes `user_id`, `agent_id`, `run_id` | Takes only `user_id` | Takes none |
 | --- | --- | --- |
-| `remember`, `recall`, `recall_related`, `forget`, `get_memory`, `update_memory`, `history`, `list_memories`, `record_decision`, `check_before_act`, `safe_recall`, `pending_changes`, `confirm_change`, `reject_change`, `set_reconcile_policy`, `get_reconcile_policy`, `attest`, `delete`, `delete_all`, `export_memory`, `purge_expired` | `explain_decision` (default `"default"`), `audit_log` (default `""` = whole deployment) | `verify_receipt`, `verify_audit`, `export_public_key`, `create_principal`, `list_principals`, `revoke_principal`, `license_status`, `stats`, `health` |
+| `remember`, `recall`, `recall_related`, `forget`, `get_memory`, `update_memory`, `history`, `list_memories`, `record_decision`, `check_before_act`, `safe_recall`, `pending_changes`, `confirm_change`, `reject_change`, `set_reconcile_policy`, `get_reconcile_policy`, `attest`, `delete`, `delete_all`, `export_memory`, `purge_expired` | `explain_decision` (default `"default"`), `audit_log` (default `""` = the whole tenant) | `verify_receipt`, `verify_audit`, `export_public_key`, `create_principal`, `list_principals`, `revoke_principal`, `license_status`, `stats`, `health` |
 
 ## Capabilities
 
@@ -45,7 +45,7 @@ On `vayl-server` every call is checked before the tool runs, and denials are wri
 | `approve` | admin, member | `confirm_change`, `reject_change` |
 | `admin` | admin | `delete_all`, `purge_expired`, `set_reconcile_policy`, `create_principal`, `list_principals`, `revoke_principal` |
 
-Three tools add a check of their own: `audit_log` without a `user_id` needs `admin`; `verify_receipt` only verifies receipts owned by a space in the caller's scope; `remember` with a trusted `source` needs a key named after that source, or `approve`. See [Authentication & access](../core-concepts/authentication-and-access.md) for roles, scopes and tenants.
+Three tools add a check of their own: `audit_log` without a `user_id` needs `admin`; `verify_receipt` only verifies receipts owned by a space in the caller's scope; `remember` with a trusted `source` needs a key named after that source, or `approve`. On a multi-tenant deployment, some admin tools also depend on the caller's tenant: see [The deployment operator](../core-concepts/authentication-and-access.md#the-deployment-operator). See [Authentication & access](../core-concepts/authentication-and-access.md) for roles, scopes and tenants.
 
 ## Groups
 

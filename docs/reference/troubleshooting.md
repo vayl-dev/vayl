@@ -47,16 +47,27 @@ ValueError: VAYL_ENCRYPT must be on or off, got 'maybe'
 * **Solution:** fix the variable named in the message. The accepted values are in [Configuration](configuration.md).
 * **Verification:** the server starts.
 
-### `VAYL_LOG_FORMAT must be 'text' or 'json'` / `Unknown level`
+### `VAYL_LOG_FORMAT must be 'text' or 'json'` / `VAYL_LOG_LEVEL must be …`
 
 ```
 ValueError: VAYL_LOG_FORMAT must be 'text' or 'json', got 'xml'
-ValueError: Unknown level: 'LOUD'
+ValueError: VAYL_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR or CRITICAL, got 'LOUD'
 ```
 
 * **Cause:** an unsupported `VAYL_LOG_FORMAT` or `VAYL_LOG_LEVEL`.
-* **Solution:** use `text` or `json` for the format, and `DEBUG`, `INFO`, `WARNING` or `ERROR` for the level.
+* **Solution:** use `text` or `json` for the format, and `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` (any case) for the level.
 * **Verification:** the server starts and logs in the chosen format on stderr.
+
+### `VAYL_OIDC_ROLE_MAP must be a JSON object`
+
+```
+ValueError: VAYL_OIDC_ROLE_MAP must be a JSON object like {"group": "role"}: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ValueError: VAYL_OIDC_ROLE_MAP must be a JSON object like {"group": "role"}
+```
+
+* **Cause:** with OIDC configured, `VAYL_OIDC_ROLE_MAP` isn't valid JSON (first line, with the parser's detail), or is valid JSON but not an object, such as a list (second line). Before 0.7.0 a malformed map was silently ignored and every SSO user got `VAYL_OIDC_DEFAULT_ROLE`.
+* **Solution:** set a JSON object with double-quoted keys, for example `VAYL_OIDC_ROLE_MAP='{"vayl-admins":"admin","eng":"member"}'`. Single-quote the whole value in the shell.
+* **Verification:** `vayl-server` starts.
 
 ### `unknown slot preset` / schema file not found
 
@@ -250,6 +261,24 @@ Access denied: 'fhir' is a trusted source (VAYL_TRUSTED_SOURCES), so its changes
 * **Solution:** give the feed its own principal named exactly like the source (`create_principal("fhir", role="agent")`), or drop the `source` so the change goes through the approval queue.
 * **Verification:** the write returns `Stored: …` rather than a denial.
 
+### Tenant admin denials (multi-tenant deployments)
+
+```
+Access denied: you can only create principals in your own tenant.
+Access denied: stats are deployment-wide; ask the deployment operator.
+Access denied: the audit log is shared by every tenant, so only the deployment operator may purge it (include_audit).
+```
+
+* **Cause:** since 0.7.0, only the deployment operator (an admin of the `default` tenant, including the local stdio admin) reaches across tenants. The first line is `create_principal` with a `tenant` other than the caller's; the second is `stats` from any caller outside `default`; the third is `purge_expired(include_audit=True)` from anyone but the operator.
+* **Solution:** leave `tenant` empty to create a principal in your own tenant, and ask the operator for deployment-wide numbers or an audit purge. `include_decisions` and `include_receipts` work for a tenant admin and purge only its tenant. See [The deployment operator](../core-concepts/authentication-and-access.md#the-deployment-operator).
+* **Verification:** the call without the cross-tenant part succeeds, for example `create_principal("acme-viewer", role="viewer")` returns `Created principal … tenant: acme`.
+
+### A principal, decision or receipt from another tenant isn't found
+
+* **Cause:** a tenant admin's `revoke_principal` on another tenant's id returns `No active principal <id> (unknown or already revoked).`, and `explain_decision` or `verify_receipt` on a row recorded in another tenant returns `No decision #N in this scope.` or `No receipt #N.` Since 0.7.0 these are confined to the caller's tenant. Rows written before the upgrade are in `default`.
+* **Solution:** make the call with a key in the tenant that owns the row, or as the deployment operator for principals.
+* **Verification:** `list_principals` from that key lists the principal.
+
 ### `Seat limit reached`
 
 ```
@@ -258,7 +287,7 @@ Seat limit reached: 3 active principal(s) allowed on the community edition. Revo
 
 * **Cause:** `create_principal` would exceed the license's seat count. Community allows 3 active principals. The local stdio admin doesn't count.
 * **Solution:** `revoke_principal` an unused one (a revoked principal stops counting), or install a license with more seats.
-* **Verification:** `license_status` shows `principals in use:` below the cap.
+* **Verification:** as the deployment operator, `license_status` shows `principals in use:` below the cap. Seats are counted across every tenant.
 
 ## Tool results that look wrong
 
@@ -298,9 +327,7 @@ Recall answers are written by the model, so wording varies between runs and mode
 * **Solution:** list proposals with `pending_changes()`, then `confirm_change(memory_id)` or `reject_change(memory_id)` with a key that has `approve`. See [Safety gates and human approval](../guides/safety-gates-and-human-approval.md).
 * **Verification:** after approval, `list_memories` shows the new value.
 
-{% hint style="warning" %}
-`forget` on a confirm-gated slot currently replies `Nothing matching to retract (that fact isn't currently stored).` even though it queued a removal proposal. Check `pending_changes()` rather than trusting that message.
-{% endhint %}
+`forget` on a confirm-gated slot is gated the same way. It replies `Proposed for removal, awaiting approval …` (or `Already awaiting approval …` if that removal is already queued), and `pending_changes()` lists it as `REMOVE <subject>: '<value>'`.
 
 ### Is the audit trail intact?
 

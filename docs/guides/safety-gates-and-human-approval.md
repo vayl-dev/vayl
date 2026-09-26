@@ -104,9 +104,11 @@ The approver recorded in the audit log is the authenticated caller, as `name [pr
 * A proposal can't be confirmed once the value it would have replaced has changed. It was made against state that no longer holds; `confirm_change` says so and the change must be proposed again.
 * A rejected proposal is kept as history: that someone proposed it is worth auditing.
 
-{% hint style="warning" %}
-`forget` on a confirm-gated slot queues a removal proposal but currently replies `Nothing matching to retract (that fact isn't currently stored).` Check `pending_changes()` after a gated `forget`.
-{% endhint %}
+`forget` on a confirm-gated slot queues a removal proposal and says so; `pending_changes()` lists it as `REMOVE <subject>: '<value>'`:
+
+```
+Proposed for removal, awaiting approval (the value stays current until someone approves it with confirm_change; see pending_changes): code_status = full code
+```
 
 ## Let authorized feeds skip the queue
 

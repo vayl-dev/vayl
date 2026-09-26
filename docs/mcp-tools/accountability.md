@@ -7,6 +7,8 @@ icon: file-signature
 
 These seven tools produce and check signed evidence: decision snapshots bound to the facts an agent consulted, attestations of what memory held, erasure receipts, and a tamper-evident audit log. Signatures are Ed25519, and every audit entry is hash-chained to the one before it, with a signed head checkpoint. Anyone holding the public key can verify receipts and attestations without the database.
 
+**Tenants.** Since 0.7.0, decisions, receipts and audit entries are stamped with the caller's [tenant](../core-concepts/memory-spaces.md#tenants), and every lookup is filtered by it. A caller in one tenant can't explain another tenant's decision, verify its receipts or list its audit entries. The audit log is still one hash chain for the whole deployment; the tenant is a filter column outside the hashed content, so chains written before 0.7.0 still verify.
+
 Outputs below were captured by running the tools offline.
 
 ## Capabilities at a glance
@@ -48,7 +50,7 @@ The `based on:` line is the answering model's free text; the rest is determinist
 explain_decision(decision_id: int, user_id: str = "default") -> str
 ```
 
-Reconstructs a past decision: the action and the beliefs held at that moment, even if those facts have since been superseded, retracted, or erased (erased values are redacted from the snapshot). It also re-verifies the decision's signature. Takes only `user_id`, and only finds decisions recorded under that `user_id`.
+Reconstructs a past decision: the action and the beliefs held at that moment, even if those facts have since been superseded, retracted, or erased (erased values are redacted from the snapshot). It also re-verifies the decision's signature. Takes only `user_id`, and only finds decisions recorded under that `user_id` in the caller's tenant.
 
 ```
 Decision #1  (2026-09-26T12:20:13+00:00)
@@ -58,7 +60,7 @@ Decision #1  (2026-09-26T12:20:13+00:00)
   ✓ receipt verified (record intact)
 ```
 
-The last line is `⚠ receipt FAILED verification (record altered)` if the record was changed, or `(unsigned)` when signing is off. An unknown id returns `No decision #99 in this scope.`
+The last line is `⚠ receipt FAILED verification (record altered)` if the record was changed, or `(unsigned)` when signing is off. An unknown id, or a decision recorded in another tenant, returns `No decision #99 in this scope.`
 
 ## attest
 
@@ -93,7 +95,7 @@ Receipt #3 [erasure_receipt] — erased 1 record(s) of 'refund_window'  (ts 2026
   ✓ VALID — signature verified, payload intact
 ```
 
-A bad signature shows `⚠ INVALID — signature does not match (altered or unsigned)`. An unknown id returns `No receipt #99.`
+A bad signature shows `⚠ INVALID — signature does not match (altered or unsigned)`. An unknown id, or a receipt issued in another tenant, returns `No receipt #99.`
 
 **Ownership.** Receipt ids are sequential, so the lookup is scoped: the owner is the `user_id` at the head of the receipt's scope (`user_id/agent_id/run_id`). A caller whose scope doesn't include it gets `Access denied: that receipt belongs to a memory space outside your scope.` A legacy receipt with no scope needs `admin`: `Access denied: verifying an unscoped receipt requires the 'admin' capability.`
 
@@ -103,7 +105,7 @@ A bad signature shows `⚠ INVALID — signature does not match (altered or unsi
 audit_log(limit: int = 50, user_id: str = "") -> str
 ```
 
-The accountability trail (GDPR Art. 5(2)): recent operations, newest first. Entries are encrypted at rest and are not removed by memory erasure. With `user_id` set, the call is scope-checked and shows that space's trail. With `user_id` empty, it shows the whole deployment and needs `admin`:
+The accountability trail (GDPR Art. 5(2)): recent operations, newest first. Entries are encrypted at rest and are not removed by memory erasure. With `user_id` set, the call is scope-checked and shows that space's trail in the caller's tenant. With `user_id` empty, it needs `admin` and shows every entry in the caller's tenant. Only the deployment operator (an admin of the `default` tenant, including the local stdio admin) gets an unfiltered view across every tenant. Without `admin`:
 
 ```
 Access denied: the deployment-wide audit log requires the 'admin' capability. Pass a user_id within your scope to see that space's trail.
@@ -115,6 +117,15 @@ Access denied: the deployment-wide audit log requires the 'admin' capability. Pa
 2026-09-26T12:20:13+00:00  safe_recall        user=proj_7  what is the api timeout?: WITHHELD
 2026-09-26T12:20:13+00:00  safe_recall        user=proj_7  what state library do we use?: WITHHELD
 2026-09-26T12:20:13+00:00  check_before_act   user=proj_7  state: BLOCKED
+```
+
+In the operator's unfiltered view, entries from a tenant other than `default` are tagged `tenant=<name>`:
+
+```
+2026-09-26T19:08:27+00:00  create_principal   user=local  prin_b5b9c5c2960b 'ci-agent' role=agent tenant=default scopes=*
+2026-09-26T19:08:27+00:00  access_denied      tenant=acme user=prin_59dd2d975aa1  stats: caller in tenant 'acme' asked for deployment-wide stats
+2026-09-26T19:08:27+00:00  remember           tenant=acme user=u1  ADD state
+2026-09-26T19:08:27+00:00  remember           user=u1  ADD state
 ```
 
 An empty log returns `No audit entries.` The `detail` column can contain memory content (for example the first 80 characters of a recall question).
@@ -133,7 +144,7 @@ Recomputes every audit row's hash and signature end to end, and checks the signe
 
 A broken chain returns `⚠ Audit chain BROKEN at seq <n>: <reason>.` Rows written before chaining existed are counted as `(<n> legacy/unchained)`.
 
-`purge_expired(..., include_audit=True)` deletes old audit rows from the head of the chain and writes a signed retention anchor, so `verify_audit` still passes after a retention purge. See [`purge_expired`](compliance-gdpr.md#purge_expired).
+`purge_expired(..., include_audit=True)` deletes old audit rows from the head of the chain and writes a signed retention anchor, so `verify_audit` still passes after a retention purge. Because the chain is shared by every tenant, only the deployment operator may use `include_audit`. See [`purge_expired`](compliance-gdpr.md#purge_expired).
 
 ## export\_public\_key
 

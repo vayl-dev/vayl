@@ -15,6 +15,8 @@ icon: bookmark
 
 **Declared slot:** A slot defined in the slot schema (`VAYL_SLOT_SCHEMA`) with a canonical name, aliases, and optional `category`, `multi`, `confirm` and `verbatim` settings.
 
+**Deployment operator:** An admin of the `default` tenant, including the local stdio admin. Only the operator reaches across tenants: it creates, lists and revokes principals in every tenant, sees seat usage in `license_status`, reads the audit log across tenants, and may purge it with `include_audit`. An admin of any other tenant runs only that tenant, and `stats` is denied to every caller outside `default`.
+
 **Event vs. state:** State holds until it is replaced and obeys the same-slot invariant. An event happened at a point in time and is never superseded. The kind is stored in the fact's metadata.
 
 **Flag:** The reconcile action that stores a fact as `FLAGGED_CONFLICT` for a person to review, instead of applying it.

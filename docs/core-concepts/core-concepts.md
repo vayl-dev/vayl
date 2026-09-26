@@ -40,7 +40,7 @@ There is no "retracted" status. A retraction marks the fact `SUPERSEDED` and wri
 
 ## The nine actions
 
-The model proposes an action. `_apply` in `memory/llm_memory.py` makes the final decision, and the result of `remember` shows it: `Stored: [<ACTION>] <subject> = <value>`.
+The model proposes an action. `_apply` in `memory/llm_memory.py` makes the final decision, and the result of `remember` shows it: `Stored: [<ACTION>] <subject> = <value>`. A `SKIP` is reported on its own line, `Not stored (hypothetical, sarcasm, or nothing to change): <subject> = <value>`.
 
 | Action | Effect | When it fires |
 | --- | --- | --- |
@@ -61,7 +61,7 @@ Stored: [ADD] state = Redux
 Stored: [SUPERSEDE] state = Zustand
 Stored: [ARCHIVE] billing = monthly
 Stored: [FLAG] primary_database = Postgres
-Stored: [SKIP] state = Jotai
+Not stored (hypothetical, sarcasm, or nothing to change): state = Jotai
 No durable fact found (looked like chatter or a question).
 ```
 
@@ -99,7 +99,7 @@ If the exact message (case-folded, whitespace-collapsed) already produced facts 
 
 A **slot** is a fact's `(subject, scope)` within one memory space. For single-valued state, Vayl keeps **at most one active value per slot**.
 
-This is enforced deterministically. When a new `ADD`, `SUPERSEDE` or `REFINE` lands on a slot that already holds a different active value, the old value is retired even if the model didn't link them. A weak model that labels "we use Postgres now" as `ADD` still can't leave MySQL active beside it:
+This is enforced deterministically. When a new `ADD`, `SUPERSEDE`, `REFINE` or `COEXIST` lands on a slot that already holds a different active value, the old value is retired even if the model didn't link them. A weak model that labels "we use Postgres now" as `ADD` still can't leave MySQL active beside it:
 
 ```
 Stored: [ADD] db = MySQL
@@ -112,9 +112,15 @@ Several active values can share a subject only in these cases:
 * **Declared list slots** (`"multi": true`), such as allergies or active medications. A new item joins the list. A `SUPERSEDE` replaces the matching item by identity (the drug or substance name before any dose), and a retract removes only the item it names.
 * **Events.** Two races are two races. The exception is a declared single-valued slot that already holds a different value: there, an incoming "event" is treated as a state change and supersedes.
 
-{% hint style="warning" %}
-**Known gap (0.6.0):** if the extraction model labels a fact `COEXIST` but gives it the **same** scope as an existing value, both values stay active. The invariant check covers `ADD`, `SUPERSEDE` and `REFINE` but trusts `COEXIST`. Declared slots make the model far less likely to hit this, and `list_memories` shows it when it happens.
-{% endhint %}
+A `COEXIST` is checked like any other change. If the model labels a fact `COEXIST` but gives it the **same** scope as the current value, it's a change the model misnamed, and it supersedes:
+
+```
+Stored: [ADD] state = Redux
+Stored: [SUPERSEDE] state = Zustand
+Stored: [COEXIST] state = MobX
+```
+
+The second fact came back from the model as `COEXIST` on the same scope as Redux, so Vayl superseded Redux. The third is a real `COEXIST` with scope `mobile`, so Zustand and MobX both stay active. Before 0.7.0 a same-scope `COEXIST` left both values active.
 
 ## Events vs. state
 

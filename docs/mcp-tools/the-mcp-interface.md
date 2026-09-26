@@ -45,7 +45,7 @@ www-authenticate: Bearer
 { "jsonrpc": "2.0", "id": 1, "method": "tools/list" }
 ```
 
-Each entry has `name`, `description`, `inputSchema` (JSON Schema of the arguments, with defaults), and `annotations`. Against a 0.6.0 server it returns 32 tools. Prefer it over any static list when you need exact argument names.
+Each entry has `name`, `description`, `inputSchema` (JSON Schema of the arguments, with defaults), and `annotations`. Against a 0.7.0 server it returns 32 tools. Prefer it over any static list when you need exact argument names.
 
 ## Call a tool with tools/call
 

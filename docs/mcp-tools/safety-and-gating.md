@@ -62,7 +62,7 @@ For example:
   • confidence 0.5 < required 0.7
 ```
 
-While a change to a confirm-required slot is pending, the proposal is a flagged fact on that subject, so `check_before_act` blocks with one `unresolved conflict (FLAGGED)` line per pending proposal until someone decides.
+While a change to a confirm-required slot is pending, the proposal is a flagged fact on that subject, so `check_before_act` blocks until someone decides. Each reason is listed once, however many proposals are pending.
 
 ## safe\_recall
 
@@ -111,13 +111,13 @@ Lists proposed changes to **confirm-required** slots (slots declared with `"conf
 2 change(s) awaiting approval:
   #2 REPLACE active_medication: 'warfarin 5mg daily' -> 'apixaban 5mg twice daily'
         said: 'Switch her to apixaban 5mg twice daily.'
-  #3 REMOVE active_medication: 'warfarin 5mg daily' -> 'warfarin 5mg daily'
+  #3 REMOVE active_medication: 'warfarin 5mg daily'
         said: 'Maybe stop the warfarin.'
 
 Approve with confirm_change(memory_id), discard with reject_change(memory_id).
 ```
 
-For a `REMOVE`, both sides show the value that would be removed. An empty queue returns `No changes awaiting approval.`
+A `REMOVE` shows the value that would be removed; there is no new value. An empty queue returns `No changes awaiting approval.`
 
 ## confirm\_change
 

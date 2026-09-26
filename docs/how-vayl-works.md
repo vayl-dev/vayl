@@ -106,8 +106,8 @@ The extractor sees at most `VAYL_RECONCILE_CONTEXT` (default 40) of the most rel
 
 ### Security layer
 
-* **Audit chain.** Each operation, including denials, is appended to an audit log whose rows are hash-chained (`sha256(prev_hash | row)`). With signing on (`VAYL_SIGN`, default on), each entry is also Ed25519-signed and a signed head checkpoint detects tail truncation. `verify_audit` checks the chain.
-* **Decisions and receipts.** `record_decision` snapshots the exact facts behind an action. `attest` and erasure produce signed receipts that a third party can check with `export_public_key` and `verify_receipt`.
+* **Audit chain.** Each operation, including denials, is appended to an audit log whose rows are hash-chained (`sha256(prev_hash | row)`). With signing on (`VAYL_SIGN`, default on), each entry is also Ed25519-signed and a signed head checkpoint detects tail truncation. `verify_audit` checks the chain. There is one chain for the whole deployment; each row also records its tenant, outside the hashed content, so listings can be confined to it.
+* **Decisions and receipts.** `record_decision` snapshots the exact facts behind an action. `attest` and erasure produce signed receipts that a third party can check with `export_public_key` and `verify_receipt`. Decisions and receipts are stamped with the caller's tenant and only found from inside it.
 * **Keys.** The signing seed is derived from `VAYL_KEY` when set, otherwise from an auto-generated `<db>.sign.key` file. Encryption uses a separate key.
 
 ### Optional graph projection

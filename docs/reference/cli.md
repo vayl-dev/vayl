@@ -15,7 +15,7 @@ Installing `vayl-mcp` puts five commands on your `PATH`. Two run the MCP server,
 | `vayl-demo` | Offline demo of reconciliation. No keys needed. |
 | `vayl-license` | Vendor-side: generate the signing keypair and mint customer licenses. |
 
-Output below was captured from vayl 0.6.0.
+Output below was captured from vayl 0.7.0.
 
 ## vayl-mcp
 
@@ -37,7 +37,7 @@ Configuration: environment variables, see https://vayl.gitbook.io/vayl-docs
 
 ```
 $ vayl-mcp --version
-vayl-mcp 0.6.0
+vayl-mcp 0.7.0
 ```
 
 `--help` and `--version` answer before the database is opened, so they don't create `vayl.db` in the current directory. On start, the server validates settings such as `LLM_PROVIDER` and `VAYL_LOG_FORMAT` and exits with an error naming a bad value. Logs go to stderr; stdout belongs to the MCP protocol.
@@ -62,7 +62,7 @@ Configuration: environment variables, see https://vayl.gitbook.io/vayl-docs
 
 ```
 $ vayl-server --version
-vayl-server 0.6.0
+vayl-server 0.7.0
 ```
 
 On start it prints the endpoint (the uvicorn lines go to stderr):
@@ -88,15 +88,17 @@ With no argument it runs `status`. On a fresh database:
 $ vayl-migrate status
   v1  baseline             PENDING
   v2  policy-per-tenant    PENDING
-schema: v0 (this Vayl: v2)
+  v3  tenant-accountability PENDING
+schema: v0 (this Vayl: v3)
 ```
 
 ```
 $ vayl-migrate up
-applied: 1, 2
-  v1  baseline             applied 2026-09-26T16:04:28+00:00
-  v2  policy-per-tenant    applied 2026-09-26T16:04:28+00:00
-schema: v2 (this Vayl: v2)
+applied: 1, 2, 3
+  v1  baseline             applied 2026-09-26T19:01:45+00:00
+  v2  policy-per-tenant    applied 2026-09-26T19:01:45+00:00
+  v3  tenant-accountability applied 2026-09-26T19:01:45+00:00
+schema: v3 (this Vayl: v3)
 ```
 
 When nothing is pending, `up` prints `nothing to apply` before the table.
@@ -105,6 +107,7 @@ When nothing is pending, `up` prints `nothing to apply` before the table.
 | --- | --- | --- |
 | v1 | `baseline`: the schema as of 0.4–0.6, including every in-place upgrade earlier releases made. | Yes |
 | v2 | `policy-per-tenant`: rebuilds the reconcile-policy table with the tenant in its key, keeping existing policies. | **No.** Back up first; 0.6 refuses to start on a v2 database, so rolling back means restoring the backup. |
+| v3 | `tenant-accountability`: adds a `tenant_id` column to `decisions`, `receipts` and `audit`. Existing rows are stamped `default`. The audit hash chain doesn't cover the column, so existing chains still verify. | Yes |
 
 ### vayl-migrate reproject-graph
 

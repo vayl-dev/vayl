@@ -160,7 +160,7 @@ If the graph is enabled and you're upgrading from 0.6 or earlier, also run `vayl
 
 Migrations run under a lock, so several processes starting at once are safe. With several `vayl-server` processes on one Postgres, you can still run `vayl-migrate up` once before rolling out.
 
-**Rolling back.** Migrations are additive, so the previous release keeps running on an upgraded database: roll back the package or image and start it. The changelog flags any migration that isn't additive; for those, restore the backup. A Vayl older than the database's schema refuses to start and says which version it found, so it never writes to a schema it doesn't understand.
+**Rolling back.** A Vayl older than the database's schema refuses to start and says which version it found, so it never writes to a schema it doesn't understand. To roll back, restore the backup you took before upgrading. 0.7 adds two migrations: v2 (`policy-per-tenant`) rebuilds the reconcile-policy table and isn't additive, so 0.6 can't run on a 0.7 database; v3 (`tenant-accountability`) is additive. The [CLI reference](../reference/cli.md#vayl-migrate) lists every migration.
 
 ## Hardening checklist
 

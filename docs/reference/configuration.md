@@ -175,7 +175,7 @@ OIDC lets people sign in with an ID token from your identity provider instead of
 | `VAYL_OIDC_AUDIENCE` | unset | Expected `aud` claim. **Required** to enable SSO. |
 | `VAYL_OIDC_JWKS_URL` | unset | The IdP's JWKS endpoint. **Required** to enable SSO. |
 | `VAYL_OIDC_ROLE_CLAIM` | `groups` | Claim holding the user's groups. |
-| `VAYL_OIDC_ROLE_MAP` | `{}` | JSON object mapping IdP groups to Vayl roles, for example `{"vayl-admins":"admin","eng":"member"}`. Invalid JSON is ignored (treated as `{}`), so every user gets the default role. |
+| `VAYL_OIDC_ROLE_MAP` | `{}` | JSON object mapping IdP groups to Vayl roles, for example `{"vayl-admins":"admin","eng":"member"}`. Anything other than a JSON object fails at startup: `VAYL_OIDC_ROLE_MAP must be a JSON object like {"group": "role"}`. |
 | `VAYL_OIDC_DEFAULT_ROLE` | `viewer` | Role for a user with no mapped group. An unknown role name falls back to `viewer`. |
 | `VAYL_OIDC_SCOPE_CLAIM` | unset | Claim holding the `user_id`s this user may touch (a list or comma-separated string). Unset means SSO users are unrestricted. Set it in a multi-tenant deployment. |
 
@@ -203,7 +203,7 @@ If Neo4j is configured but unreachable, Vayl keeps running on the slot store and
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `VAYL_LOG_LEVEL` | `WARNING` | `DEBUG`, `INFO`, `WARNING` or `ERROR`. Logs go to stderr. An unknown level fails at startup. |
+| `VAYL_LOG_LEVEL` | `WARNING` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, any case. Logs go to stderr. Anything else fails at startup naming the variable. |
 | `VAYL_LOG_FORMAT` | `text` | `text`, or `json` for one JSON object per line. Any other value fails at startup. |
 
 `ERROR` lines carry a reference, the exception type and the code location, never the exception text, which can contain memory content. That detail is logged only at `DEBUG`, so treat `DEBUG` logs as sensitive.
