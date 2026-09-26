@@ -18,11 +18,13 @@ from vayl.storage import graph_store as gs  # noqa: E402
 
 URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
 USER = os.environ.get("NEO4J_USER", "neo4j")
-PW = os.environ.get("NEO4J_PASSWORD", "testpass123")
+PW = os.environ.get("NEO4J_PASSWORD")
 NS_A, NS_B = "tenantA\x1f\x1f", "tenantB\x1f\x1f"
 
 
 def _reachable():
+    if not PW:
+        return False
     try:
         d = neo4j.GraphDatabase.driver(URI, auth=(USER, PW))
         d.verify_connectivity()

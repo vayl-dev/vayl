@@ -16,10 +16,12 @@ Client config (Claude Desktop / Cursor -> mcpServers):
 """
 import contextvars
 import json
+import logging
 import os
 import secrets
 import sys
 import time
+import traceback
 
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -35,6 +37,8 @@ from vayl.security import crypto
 from vayl.security.audit import Audit
 from vayl.storage.store import Store, bind_tenant, reset_tenant
 from vayl.telemetry.metrics import Metrics
+
+log = logging.getLogger(__name__)
 
 # ── tool safety annotations ───────────────────────────────────────────────────
 # Tell MCP clients which tools are safe to auto-run vs. which need confirmation.
@@ -62,15 +66,24 @@ def _maybe_graph():
     Fully graceful: if the driver or DB is unavailable, we run slot-only rather than crash."""
     if os.environ.get("VAYL_GRAPH", "").lower() not in ("1", "true", "yes"):
         return None
+    # A missing password is misconfiguration, not an outage: fail at startup instead of silently
+    # connecting with a well-known default.
+    if not os.environ.get("NEO4J_PASSWORD"):
+        raise RuntimeError("VAYL_GRAPH is set but NEO4J_PASSWORD is not. Set the Neo4j password, "
+                           "or unset VAYL_GRAPH to run without the graph.")
     try:
         from vayl.storage.graph_store import Neo4jGraph
         return Neo4jGraph(
             uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
             user=os.environ.get("NEO4J_USER", "neo4j"),
-            pw=os.environ.get("NEO4J_PASSWORD", "testpass123"),
+            pw=os.environ["NEO4J_PASSWORD"],
         )
     except Exception:
-        return None   # slot-only fallback — the graph is a bonus, never a hard dependency
+        # slot-only fallback — the graph is a bonus, never a hard dependency. But the operator asked
+        # for it, so say why they aren't getting it.
+        log.warning("VAYL_GRAPH is set but the Neo4j graph is unavailable; running slot-only",
+                    exc_info=True)
+        return None
 
 
 def _transport_security():
@@ -157,7 +170,8 @@ def _deny(tool, reason, message):
         _audit.record("access_denied", getattr(_current_principal(), "id", "") or "", "", "",
                       f"{tool}: {reason}")
     except Exception:
-        pass
+        # the denial itself stands; losing its audit record is an accountability gap worth surfacing
+        log.error("failed to record access denial for %s", tool, exc_info=True)
     return message
 
 
@@ -203,7 +217,7 @@ def _guard(tool, fn, cap=None, space=None):
         return _deny(tool, f"principal {principal.id} is not scoped to the requested space",
                      f"Access denied: '{tool}' targets a memory space outside your assigned scope.")
     t0 = time.perf_counter()
-    err = None
+    err: Exception | None = None
     ref = None
     try:
         return fn()
@@ -217,7 +231,13 @@ def _guard(tool, fn, cap=None, space=None):
         # The client gets an opaque reference; the full detail goes to the server log + metrics.
         err = e
         ref = secrets.token_hex(4)
-        print(f"[vayl {ref}] {tool}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        # The exception TEXT can carry memory content (an LLM/HTTP error often echoes the prompt), and
+        # logs usually leave the machine in plaintext, beyond the reach of erasure. So the log gets the
+        # ref, the type and where it happened; the text goes to DEBUG and the encrypted metrics store.
+        tb = traceback.extract_tb(e.__traceback__)
+        where = f" at {os.path.basename(tb[-1].filename)}:{tb[-1].lineno} in {tb[-1].name}" if tb else ""
+        log.error("[vayl %s] %s: %s%s", ref, tool, type(e).__name__, where)
+        log.debug("[vayl %s] %s: full detail", ref, tool, exc_info=True)
         return (f"Vayl couldn't complete that (ref {ref}). Retry if it was a transient blip; "
                 "otherwise the full detail is in the server logs under that reference.")
     finally:
@@ -226,7 +246,7 @@ def _guard(tool, fn, cap=None, space=None):
             if err is not None:
                 _metrics.record_error(tool, type(err).__name__, (f"[{ref}] " if ref else "") + str(err))
         except Exception:
-            pass   # metrics must never break a tool
+            log.debug("metrics recording failed for %s", tool, exc_info=True)  # never break a tool
 
 
 # All memory tools accept optional agent_id / run_id: each (user_id, agent_id, run_id)
@@ -916,7 +936,13 @@ def stats() -> str:
         if errors:
             lines.append("")
             lines.append("Recent errors (most recent first):")
-            lines += [f"  {e['tool']}: {e['type']}: {e['msg']}" for e in errors]
+            # Error text can embed memory content from ANY tenant, and metrics are deployment-wide —
+            # every role holds VERIFY, so only an admin may read the text.
+            if _current_principal().can(C.ADMIN):
+                lines += [f"  {e['tool']}: {e['type']}: {e['msg']}" for e in errors]
+            else:
+                lines += [f"  {e['tool']}: {e['type']}" for e in errors]
+                lines.append("  (error details are visible to admins only)")
         return "\n".join(lines)
     return _guard("stats", go, cap=C.VERIFY)
 
@@ -927,7 +953,9 @@ def health() -> str:
     LLM, and graph (if enabled). Run this to diagnose setup before relying on memory; it makes
     one small LLM/embed call, so it costs a few tokens."""
     def go():
-        from vayl.memory.llm_memory import _embed, llm_extract_classify
+        from vayl.memory import llm_client
+        from vayl.memory.llm_client import _embed
+        from vayl.memory.llm_memory import llm_extract_classify
         report = [f"config: LLM_PROVIDER={os.environ.get('LLM_PROVIDER', '(unset)')}, "
                   f"model={os.environ.get('OPENAI_MODEL') or os.environ.get('GROQ_MODEL') or '(default)'}",
                   f"license: {_license.edition}" + ("" if _license.valid else f" (rejected: {_license.reason})"),
@@ -937,14 +965,17 @@ def health() -> str:
             _store.db.execute("SELECT 1"); report.append("db: ok")
         except Exception as e:
             report.append(f"db: FAIL ({type(e).__name__})")   # type only — detail is in server logs
-        try:
-            _embed(["ping"]); report.append("embedder: ok")
-        except Exception as e:
-            report.append(f"embedder: FAIL ({type(e).__name__})")
-        try:
-            llm_extract_classify("health check", []); report.append("llm: ok")
-        except Exception as e:
-            report.append(f"llm: FAIL ({type(e).__name__})")
+        # one attempt each: a diagnostic should report an unreachable endpoint now, not after minutes of
+        # retry backoff — which is exactly the situation someone runs health() to diagnose
+        with llm_client.single_attempt():
+            try:
+                _embed(["ping"]); report.append("embedder: ok")
+            except Exception as e:
+                report.append(f"embedder: FAIL ({type(e).__name__})")
+            try:
+                llm_extract_classify("health check", []); report.append("llm: ok")
+            except Exception as e:
+                report.append(f"llm: FAIL ({type(e).__name__})")
         if _store.graph:
             try:
                 _store.graph.all_edges(limit=1); report.append("graph: ok")
@@ -956,7 +987,24 @@ def health() -> str:
     return _guard("health", go, cap=C.VERIFY)
 
 
+def configure_logging():
+    """Called by the entry points only — library code just gets loggers. Always stderr: on stdio the
+    MCP protocol owns stdout. VAYL_LOG_LEVEL sets verbosity (default WARNING); an unknown level fails
+    at startup rather than being silently ignored."""
+    logging.basicConfig(stream=sys.stderr, level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(),
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+def startup():
+    """Entry-point setup: logging, then settings that are otherwise read lazily — so a typo fails at
+    launch with a clear message instead of on the first tool call."""
+    configure_logging()
+    from vayl.memory.llm_client import _provider
+    _provider()
+
+
 def main():
+    startup()
     # show_banner=False: on stdio the banner would print to the console; keep the transport clean.
     mcp.run(show_banner=False)
 

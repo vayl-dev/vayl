@@ -43,7 +43,7 @@ import threading
 import time
 from collections import defaultdict
 
-from vayl.memory import llm_memory
+from vayl.memory import llm_client, llm_memory
 from vayl.storage import store as store_mod
 from vayl.storage.store import Store
 
@@ -192,7 +192,7 @@ def main():
 
     # replace the embedder EVERYWHERE it is looked up
     store_mod._embed = _fake_embed
-    llm_memory._embed = _fake_embed
+    llm_client._embed = _fake_embed
     llm_memory._qa = lambda ctx, q: (ctx or "")[:80]          # no LLM on the read path either
 
     import sqlite3

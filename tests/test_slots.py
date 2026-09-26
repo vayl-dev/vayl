@@ -95,7 +95,7 @@ def test_a_malformed_schema_raises_rather_than_falling_back(tmp_path):
     always-injected when they are not — silence on exactly the guarantee the file provides."""
     p = tmp_path / "broken.json"
     p.write_text("{not json")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):                   # json.JSONDecodeError
         load(str(p))
 
 
@@ -338,7 +338,7 @@ def noise(i):
 @pytest.fixture
 def echo_qa(monkeypatch):
     monkeypatch.setattr(llm_memory, "_qa", lambda context, question: context)
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[1.0, 0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[1.0, 0.0] for _ in texts])
 
 
 @pytest.fixture

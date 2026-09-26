@@ -48,7 +48,7 @@ def test_dynamic_dispatch_returns_callable_and_guards_private():
     m = Vayl.__new__(Vayl)                 # no connection — just exercise __getattr__
     assert callable(m.check_before_act)    # any tool name → a callable
     with pytest.raises(AttributeError):
-        m._internal                        # private names are not tools
+        _ = m._internal                    # private names are not tools
 
 
 @pytest.mark.skipif(shutil.which("vayl-mcp") is None, reason="vayl-mcp not installed")

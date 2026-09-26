@@ -30,14 +30,17 @@ from starlette.routing import Mount, Route
 
 from vayl.api import mcp_server
 from vayl.auth import sso
+from vayl.config import env_int
 
 # Coarse first-party backstops (no dependency). A real reverse proxy / WAF is still recommended.
-_MAX_BODY = int(os.environ.get("VAYL_MAX_BODY", str(1 << 20)))    # 1 MiB
-_RATE_PER_MIN = int(os.environ.get("VAYL_RATE_PER_MIN", "120"))   # per client IP; 0 disables
+_MAX_BODY = env_int("VAYL_MAX_BODY", 1 << 20)    # 1 MiB
+# Per client IP, in memory and PER PROCESS: N server processes allow N x this. A global limit belongs at
+# the proxy/ingress, which sees all traffic (DEPLOY.md, "Rate limiting"). 0 disables.
+_RATE_PER_MIN = env_int("VAYL_RATE_PER_MIN", 120)
 # Behind a reverse proxy the socket peer is the proxy, so per-IP limiting collapses to one bucket.
 # Set this to the number of TRUSTED proxy hops in front of Vayl to read the real client from the
 # right end of X-Forwarded-For; 0 (default) trusts only the socket peer (correct when exposed direct).
-_TRUSTED_PROXY_HOPS = int(os.environ.get("VAYL_TRUSTED_PROXY_HOPS", "0"))
+_TRUSTED_PROXY_HOPS = env_int("VAYL_TRUSTED_PROXY_HOPS", 0)
 # When set, /metrics requires this bearer token (else it is open, for an internal scrape network).
 _METRICS_TOKEN = os.environ.get("VAYL_METRICS_TOKEN", "")
 
@@ -240,8 +243,9 @@ def main():
     # Over the network, auth is MANDATORY: the tool layer fails closed if a request somehow arrives
     # without a bound principal (defense in depth behind the middleware).
     mcp_server._AUTH_REQUIRED = True
+    mcp_server.startup()
     host = os.environ.get("VAYL_HOST", "127.0.0.1")
-    port = int(os.environ.get("VAYL_PORT", "8080"))
+    port = env_int("VAYL_PORT", 8080)
 
     # OIDC SSO (M5): enabled only when configured AND the license grants it. API keys always work.
     sso_verifier = None

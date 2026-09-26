@@ -16,6 +16,8 @@ continuity, Vayl tools for cross-session recall.
 Scope (`user_id` / `agent_id` / `run_id`) is bound on the client — never a tool argument the model can
 see or set.
 """
+from collections.abc import Callable
+
 from vayl.integrations._common import DEFAULT_SYSTEM, TOOL_DESCRIPTIONS, BaseVaylMemory
 
 _MISSING = ("The OpenAI Agents adapter needs the openai-agents package. "
@@ -50,7 +52,7 @@ class VaylMemory(BaseVaylMemory):
         def list_memories() -> str:
             return client.call("list_memories")
 
-        fns = {"remember": remember, "recall": recall, "history": history,
+        fns: dict[str, Callable[..., str]] = {"remember": remember, "recall": recall, "history": history,
                "forget": forget, "list_memories": list_memories}
         # use_docstring_info=False: description is set explicitly, so don't make griffe parse a docstring.
         return [function_tool(fns[n], name_override=n, description_override=TOOL_DESCRIPTIONS[n],

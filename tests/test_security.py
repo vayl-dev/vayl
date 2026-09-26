@@ -4,6 +4,7 @@ Security primitives — at-rest encryption, Ed25519 signing, KMS key custody, an
 
 import base64
 import json
+import logging
 import os
 import sqlite3
 import tempfile
@@ -17,6 +18,7 @@ from starlette.testclient import TestClient  # noqa: E402
 os.environ.setdefault("VAYL_DB", os.path.join(tempfile.mkdtemp(), "vayl.db"))
 from vayl.api import mcp_server as s  # noqa: E402  # noqa: E402
 from vayl.api import server as srv  # noqa: E402  # noqa: E402
+from vayl.auth.auth import Principal, Role  # noqa: E402
 from vayl.memory import llm_memory  # noqa: E402  # noqa: E402
 from vayl.memory.llm_memory import LLMMemory  # noqa: E402
 from vayl.security import kms  # noqa: E402
@@ -133,7 +135,8 @@ def test_wrong_key_cannot_read(tmp_path, monkeypatch):
 
     monkeypatch.setenv("VAYL_KEY", "a-different-key")   # attacker without the key
     (tmp_path / "vayl.db.salt").unlink(missing_ok=True)  # force a fresh (wrong) derived key
-    with pytest.raises(Exception):
+    from cryptography.fernet import InvalidToken
+    with pytest.raises(InvalidToken):
         Store(db).load("u1")                            # cannot decrypt
 
 
@@ -259,7 +262,8 @@ def test_crypto_and_signer_work_with_a_vault_sourced_key(tmp_path, monkeypatch):
 # from test_security_hardening
 # ══════════════════════════════════════════════════════════════════
 
-def test_tool_error_does_not_leak_detail_to_client(monkeypatch, capsys):
+def test_tool_error_does_not_leak_detail_to_client(monkeypatch, caplog):
+    caplog.set_level(logging.DEBUG, logger="vayl.api.mcp_server")
     def boom(*a, **k):
         raise RuntimeError("connect /Users/secret/vayl.db failed: value='alice-ssn-123'")
     monkeypatch.setattr(llm_memory, "llm_extract_classify", boom)
@@ -268,8 +272,28 @@ def test_tool_error_does_not_leak_detail_to_client(monkeypatch, capsys):
     assert "/Users/secret" not in out and "alice-ssn-123" not in out   # no path / data leak
     assert "ref " in out                                               # opaque reference instead
     ref = out.split("ref ", 1)[1].split(")")[0].strip()
-    # full detail still available server-side (stderr), keyed by the same ref
-    assert ref in capsys.readouterr().err
+    # the ERROR log names the ref, type and location — but never the exception text, which can carry
+    # memory content into plaintext logs that erasure can't reach
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR and ref in r.getMessage()]
+    assert errors and "RuntimeError" in errors[0].getMessage()
+    assert all("alice-ssn-123" not in r.getMessage() and r.exc_info is None for r in errors)
+    # the full detail is still there for an operator who opts into DEBUG
+    assert any(r.levelno == logging.DEBUG and ref in r.getMessage() and r.exc_info for r in caplog.records)
+
+
+def test_stats_shows_error_text_to_admins_only():
+    """Metrics are deployment-wide and every role holds VERIFY, so raw error text (which can embed
+    another tenant's memory) must not reach a scoped agent through stats()."""
+    s._metrics.record_error("remember", "RuntimeError", "[deadbeef] value='alice-ssn-123'")
+    try:
+        s.set_principal(Principal("bot", "bot", [Role.AGENT]))
+        out = s.stats()
+        assert "remember: RuntimeError" in out and "admins only" in out
+        assert "alice-ssn-123" not in out
+        s.set_principal(Principal("root", "root", [Role.ADMIN]))
+        assert "alice-ssn-123" in s.stats()
+    finally:
+        s.set_principal(None)
 
 
 def test_config_keyerror_hint_is_still_helpful():

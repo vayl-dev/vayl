@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "fastmcp>=3,<4",   # standalone FastMCP framework (replaces the removed bundled mcp.server.fastmcp)
     "mcp>=1.2,<2",     # still imported directly for mcp.types.ToolAnnotations; fastmcp 3 builds on mcp v1
-    "cryptography>=44",   # at-rest encryption + Argon2id VAYL_KEY KDF (Argon2id added in 44)
+    "cryptography>=50",   # at-rest encryption + Argon2id VAYL_KEY KDF; 50 fixes PYSEC-2026-3552
 ]
 
 [project.urls]
@@ -57,7 +57,7 @@ crewai = ["crewai>=1"]                        # crewai.tools @tool + Agent (v1 m
 # those adapters' tools are actually exercised in CI (not just skipped). crewai stays out — it's a heavy
 # install (vector DBs, litellm); its tools are verified locally, and an import-safety test guards the
 # module in CI regardless. Framework agent() helpers are thin passthroughs covered by their missing-dep path.
-dev = ["pytest>=8", "ruff>=0.6", "langchain-core>=0.3", "openai-agents>=0.1"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10", "langchain-core>=0.3", "openai-agents>=0.1"]
 
 [project.scripts]
 vayl-demo = "vayl.demo:main"                          # zero-setup 30s demo of reconciling memory
@@ -87,8 +87,17 @@ line-length = 120
 extend-exclude = ["benchmarks", "research"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+# E/W pycodestyle, F pyflakes, I isort, B bugbear (likely bugs), UP pyupgrade (py3.10+ idioms)
+select = ["E", "F", "W", "I", "B", "UP"]
 # The codebase uses a deliberately compact one-liner style (semicolons, grouped
 # imports, single-line ifs). We keep the real checks (unused imports/vars via F,
 # whitespace via W, import order via I) and drop the purely-stylistic ones.
 ignore = ["E501", "E701", "E702", "E401", "E741"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/vayl"]
+# check the bodies of unannotated functions too — that is where most of this codebase lives
+check_untyped_defs = true
+# optional extras (neo4j, langchain, crewai, …) are not installed in every environment
+ignore_missing_imports = true

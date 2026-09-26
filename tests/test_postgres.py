@@ -18,10 +18,9 @@ pytestmark = pytest.mark.skipif(not PG, reason="set VAYL_TEST_DATABASE_URL to ru
 def pg(monkeypatch):
     monkeypatch.setenv("VAYL_DATABASE_URL", PG)
     monkeypatch.setenv("VAYL_ENCRYPT", "on")
-    from vayl.memory import llm_memory
     from vayl.storage import store as store_mod
     monkeypatch.setattr(store_mod, "_embed", lambda texts: [[0.0] for _ in texts])
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[0.0] for _ in texts])
     from vayl.storage.db import Database
     d = Database(PG)
     for t in ("statements", "space_config", "audit", "decisions", "receipts",

@@ -11,13 +11,18 @@ Facts are written as directed entity->relation->entity edges. Scales via:
     relevant edges INSIDE the database (sub-second, no per-query embedding, no hub cap).
 The Python-side neighborhood+rank path remains as a fallback when embeddings aren't available.
 """
+import logging
 import re
 
-from vayl.memory.llm_memory import _embed
+from vayl.memory.llm_client import _embed
+
+log = logging.getLogger(__name__)
 
 
 class Neo4jGraph:
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", pw="testpass123"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", pw=None):
+        if not pw:
+            raise ValueError("a Neo4j password is required (set NEO4J_PASSWORD)")
         # neo4j is an optional [graph] dependency — import it only when a graph is actually
         # instantiated, so `import graph_store` works in a slot-only install (and in CI).
         from neo4j import GraphDatabase
@@ -33,11 +38,11 @@ class Neo4jGraph:
                 s.run("CREATE CONSTRAINT entity_name IF NOT EXISTS "
                       "FOR (n:Entity) REQUIRE n.name IS UNIQUE")
             except Exception:
-                pass
+                log.warning("graph: could not create the entity-name uniqueness constraint", exc_info=True)
             try:
                 s.run("CREATE FULLTEXT INDEX entity_names IF NOT EXISTS FOR (n:Entity) ON EACH [n.name]")
             except Exception:
-                pass
+                log.warning("graph: could not create the entity-name full-text index", exc_info=True)
 
     def close(self): self.driver.close()
     def wipe(self):
@@ -160,7 +165,7 @@ class Neo4jGraph:
             self._ensure_vector_index(len(vecs[0]))
             with self.driver.session() as s:
                 s.run("UNWIND $rows AS row MATCH ()-[r:REL]->() WHERE elementId(r)=row.rid SET r.emb=row.emb",
-                      rows=[{"rid": x["rid"], "emb": v} for x, v in zip(chunk, vecs)])
+                      rows=[{"rid": x["rid"], "emb": v} for x, v in zip(chunk, vecs, strict=True)])
         with self.driver.session() as s:
             try: s.run("CALL db.awaitIndexes()")   # let the vector index catch up before querying
             except Exception: pass

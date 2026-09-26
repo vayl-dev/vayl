@@ -1,0 +1,176 @@
+"""
+The MCP tool layer, end to end — the product's public contract.
+
+Engine and store logic are tested on their own elsewhere; these drive the real `@mcp.tool` functions
+through authorization, the space lock, load → reconcile → save, the audit chain, receipts, and the
+text a client actually receives. Only the model seams are stubbed (extraction, answering, embedding),
+so every test is offline and deterministic.
+"""
+import json
+import os
+import tempfile
+import uuid
+
+import pytest
+
+os.environ.setdefault("VAYL_DB", os.path.join(tempfile.mkdtemp(), "vayl.db"))
+from vayl.api import mcp_server as s  # noqa: E402
+from vayl.memory import llm_memory  # noqa: E402
+from vayl.storage import store as store_mod  # noqa: E402
+
+
+def _fact(action, subject, value):
+    return {"action": action, "subject": subject, "value": value, "scope": "global",
+            "confidence": 0.95, "time_ref": "present"}
+
+
+# What a model would extract from each sentence the tests send.
+SCRIPT = {
+    "We use Redux for state.": [_fact("ADD", "state", "Redux")],
+    "We moved off Redux to Zustand.": [_fact("SUPERSEDE", "state", "Zustand")],
+    "We use Sentry for monitoring.": [_fact("ADD", "monitoring", "Sentry")],
+    "We dropped Sentry.": [_fact("RETRACT", "monitoring", "Sentry")],
+}
+
+
+def _extract(text, active):
+    out = []
+    for o in SCRIPT.get(text, []):
+        o = dict(o)
+        target = next((a for a in active if a.subject == o["subject"]), None)
+        if target is not None and o["action"] in ("SUPERSEDE", "RETRACT"):
+            o["target_id"] = target.id
+        out.append(o)
+    return out
+
+
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    monkeypatch.setattr(llm_memory, "llm_extract_classify", _extract)
+    monkeypatch.setattr(llm_memory, "_qa", lambda context, question: context)   # answer = facts used
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr(store_mod, "_embed", lambda texts: [[0.1, 0.2] for _ in texts])
+
+
+@pytest.fixture
+def uid():
+    return f"u_{uuid.uuid4().hex[:8]}"   # a fresh memory space per test (the store is module-level)
+
+
+def _active(uid, **space):
+    return [x.value for x in s._store.load(uid, **space).active()]
+
+
+def test_remember_supersedes_and_recall_returns_only_the_current_value(uid):
+    assert "[ADD] state = Redux" in s.remember("We use Redux for state.", user_id=uid)
+    assert "[SUPERSEDE] state = Zustand" in s.remember("We moved off Redux to Zustand.", user_id=uid)
+
+    answer = s.recall("what do we use for state?", user_id=uid)
+    assert "state=Zustand" in answer and "state=Redux" not in answer   # Redux is never a current fact
+    assert _active(uid) == ["Zustand"]                               # persisted, not just returned
+
+
+def test_a_statement_with_no_durable_fact_stores_nothing(uid):
+    assert s.remember("hmm, interesting", user_id=uid).startswith("No durable fact")
+    assert _active(uid) == []
+
+
+def test_history_lists_every_value_oldest_first(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    s.remember("We moved off Redux to Zustand.", user_id=uid)
+    out = s.history("state", user_id=uid)
+    assert out.index("Redux  [SUPERSEDED]") < out.index("Zustand  [ACTIVE]")
+
+
+def test_forget_retracts_but_keeps_the_fact_in_history(uid):
+    s.remember("We use Sentry for monitoring.", user_id=uid)
+    assert "Retracted" in s.forget("We dropped Sentry.", user_id=uid)
+    assert "Sentry" not in s.recall("what do we use for monitoring?", user_id=uid)
+    assert "Sentry" in s.history("monitoring", user_id=uid)
+    assert s.forget("We dropped Sentry.", user_id=uid).startswith("Nothing matching")
+
+
+def test_list_get_and_update_memory_by_id(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    mid = s._store.load(uid).active()[0].id
+    assert f"#{mid}" in s.list_memories(user_id=uid)
+    assert "state = Redux" in s.get_memory(mid, user_id=uid)
+
+    assert "'Redux' → 'Jotai'" in s.update_memory(mid, "Jotai", user_id=uid)
+    assert _active(uid) == ["Jotai"]
+    assert "Redux" in s.history("state", user_id=uid)                 # audit-preserving
+    assert s.get_memory(999_999, user_id=uid).startswith("No memory")
+    assert s.update_memory(999_999, "x", user_id=uid).startswith("No memory")
+
+
+def test_agent_and_run_ids_are_separate_memory_spaces(uid):
+    s.remember("We use Redux for state.", user_id=uid, agent_id="frontend")
+    s.remember("We use Sentry for monitoring.", user_id=uid, agent_id="ops")
+    assert _active(uid, agent_id="frontend") == ["Redux"]
+    assert _active(uid, agent_id="ops") == ["Sentry"]
+    assert "Sentry" not in s.recall("what do we use?", user_id=uid, agent_id="frontend")
+
+
+def test_record_decision_then_explain_it_with_a_verified_receipt(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    out = s.record_decision("Scaffolded the store module", "what do we use for state?", user_id=uid)
+    did = int(out.split("#", 1)[1].split()[0])
+
+    s.remember("We moved off Redux to Zustand.", user_id=uid)          # the belief changes later…
+    explained = s.explain_decision(did, user_id=uid)
+    assert "Scaffolded the store module" in explained
+    assert "state = Redux" in explained                                # …but the decision kept it
+    assert "receipt verified" in explained
+
+
+def test_check_before_act_is_safe_or_blocked_by_policy(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    assert s.check_before_act("state", user_id=uid).startswith("✅ SAFE")
+    blocked = s.check_before_act("state", user_id=uid, min_confidence=0.99)
+    assert blocked.startswith("⛔ BLOCKED") and "confidence" in blocked
+
+
+def test_attestation_is_a_verifiable_signed_receipt(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    out = s.attest("state", user_id=uid)
+    rid = int(out.split("#", 1)[1].split(":")[0])
+    assert "'state' = Redux" in out
+    assert "✓ VALID" in s.verify_receipt(rid)
+
+
+def test_delete_all_erases_and_issues_a_verifiable_erasure_receipt(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    out = s.delete_all(user_id=uid)
+    rid = int(out.split("receipt #", 1)[1].split()[0])
+    assert _active(uid) == []
+    verdict = s.verify_receipt(rid)
+    assert "erasure_receipt" in verdict and "✓ VALID" in verdict
+
+
+def test_reconcile_policy_roundtrip_and_rejects_unknown_modes(uid):
+    assert "RECENCY" in s.get_reconcile_policy(user_id=uid)
+    assert "AUTHORITY" in s.set_reconcile_policy("AUTHORITY", {"crm": 2, "agent": 1}, user_id=uid)
+    assert "AUTHORITY" in s.get_reconcile_policy(user_id=uid)
+    assert s.set_reconcile_policy("LOUDEST", user_id=uid).startswith("Unknown mode")
+
+
+def test_export_memory_is_complete_machine_readable_json(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    s.remember("We moved off Redux to Zustand.", user_id=uid)
+    data = json.loads(s.export_memory(user_id=uid))
+    by_value = {r["value"]: r["status"] for r in data["records"]}
+    assert by_value == {"Redux": "SUPERSEDED", "Zustand": "ACTIVE"}    # active AND history
+    assert data["count"] == 2
+    assert {"decisions", "audit", "receipts"} <= data.keys()
+
+
+def test_audit_chain_verifies_and_the_public_key_is_exported(uid):
+    s.remember("We use Redux for state.", user_id=uid)
+    assert "INTACT" in s.verify_audit()
+    assert "Ed25519 public key" in s.export_public_key()
+
+
+def test_health_reports_each_dependency():
+    report = s.health()
+    for part in ("db: ok", "embedder: ok", "llm: ok", "graph: disabled"):
+        assert part in report

@@ -10,7 +10,9 @@ pooled path, a 4xx surfaces as an error, and the urllib fallback still works whe
 import urllib.error
 from unittest import mock
 
-from vayl.memory import llm_memory as L
+import pytest
+
+from vayl.memory import llm_client as L
 
 
 def _req():
@@ -57,11 +59,9 @@ def test_pooled_path_raises_on_4xx():
     pool = mock.Mock()
     pool.request.return_value = _Resp(401, b'{"error":"bad key"}')
     with mock.patch.object(L, "_POOL", pool):
-        try:
+        with pytest.raises(urllib.error.HTTPError) as err:
             L._http_json(_req(), timeout=5)
-            assert False, "should have raised"
-        except urllib.error.HTTPError as e:
-            assert e.code == 401
+        assert err.value.code == 401
 
 
 def test_urllib_fallback_used_when_no_pool():
@@ -81,3 +81,32 @@ def test_pool_is_a_module_singleton_not_per_call():
     src = inspect.getsource(L)
     # PoolManager is constructed exactly once, at module scope
     assert src.count("PoolManager(") == 1
+
+
+def test_single_attempt_fails_fast_and_restores_the_default():
+    boom = urllib.error.URLError("connection refused")
+    with mock.patch.object(L, "_POOL", None), \
+         mock.patch.object(L.urllib.request, "urlopen", side_effect=boom) as urlopen, \
+         mock.patch.object(L.time, "sleep") as sleep:
+        with L.single_attempt():
+            with pytest.raises(urllib.error.URLError):
+                L._http_json(_req(), timeout=5)
+        assert urlopen.call_count == 1 and sleep.call_count == 0
+        assert L._RETRIES.get() == 10                        # normal traffic keeps its retry budget
+
+
+def test_health_reports_an_unreachable_endpoint_without_backoff(monkeypatch):
+    """health() is what you run when the model is down; it must not sit through minutes of retries."""
+    import os
+    import tempfile
+    os.environ.setdefault("VAYL_DB", os.path.join(tempfile.mkdtemp(), "vayl.db"))
+    from vayl.api import mcp_server
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    boom = urllib.error.URLError("connection refused")
+    with mock.patch.object(L, "_POOL", None), \
+         mock.patch.object(L.urllib.request, "urlopen", side_effect=boom) as urlopen, \
+         mock.patch.object(L.time, "sleep") as sleep:
+        report = mcp_server.health()
+    assert "embedder: FAIL (URLError)" in report and "llm: FAIL (URLError)" in report
+    assert urlopen.call_count == 2 and sleep.call_count == 0   # one attempt each, no backoff

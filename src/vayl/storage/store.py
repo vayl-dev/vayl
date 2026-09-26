@@ -18,13 +18,17 @@ import base64
 import contextvars
 import itertools
 import json
+import logging
 import os
 import time
 
-from vayl.memory.llm_memory import LLMMemory, _embed
+from vayl.memory.llm_client import _embed
+from vayl.memory.llm_memory import LLMMemory
 from vayl.memory.reconcile import Statement, Status
 from vayl.security import crypto
 from vayl.storage.db import Database
+
+log = logging.getLogger(__name__)
 
 _HOT = ("ACTIVE", "FLAGGED_CONFLICT")   # statuses kept in the in-memory working set
 
@@ -239,10 +243,10 @@ class Store:
                 if getattr(s, "_emb", None) is None and not getattr(s, "_has_emb", False)]
         if need:
             try:
-                for s, v in zip(need, _embed([_embed_text(s) for s in need])):
+                for s, v in zip(need, _embed([_embed_text(s) for s in need]), strict=True):
                     s._emb = v
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("embedding unavailable (%s); recall degrades to lexical ranking", type(e).__name__)
         to_insert = [s for s in m.statements if s.id not in loaded]
         to_update = [s for s in m.statements if s.id in loaded and (s.status.value, s.value) != loaded[s.id]]
         with self.db.transaction():   # inserts + updates land atomically, or not at all
@@ -358,15 +362,11 @@ class Store:
     def delete(self, user_id, subject, agent_id="", run_id=""):
         """HARD-erase every record of one subject in a memory space — including history/tombstones.
         This is real removal (GDPR erasure), not a RETRACT: nothing is retained. Returns rows erased."""
+        self._purge_graph(ns=self._ns(user_id, agent_id, run_id), subject=subject)
         cur = self.db.execute(
             "DELETE FROM statements WHERE tenant_id=? AND user_id=? AND agent_id=? AND run_id=? AND subject_hmac=?",
             (self.tenant, user_id, agent_id, run_id, self._bi(subject)))
         self.db.commit()
-        if self.graph:      # purge the matching graph edges too, so erasure is complete
-            try:
-                self.graph.delete_edges(ns=self._ns(user_id, agent_id, run_id), subject=subject)
-            except Exception:
-                pass
         return cur.rowcount
 
     def delete_all(self, user_id, agent_id=None, run_id=None):
@@ -378,17 +378,27 @@ class Store:
             q += " AND agent_id=?"; p.append(agent_id)
         if run_id is not None:
             q += " AND run_id=?"; p.append(run_id)
+        # graph first — prefix on user for a whole-user wipe, else the exact space
+        if agent_id is None and run_id is None:
+            self._purge_graph(ns_prefix=f"{user_id}\x1f")
+        else:
+            self._purge_graph(ns=self._ns(user_id, agent_id or "", run_id or ""))
         cur = self.db.execute(q, p)
         self.db.commit()
-        if self.graph:      # purge graph edges too — prefix on user for a whole-user wipe, else exact space
-            try:
-                if agent_id is None and run_id is None:
-                    self.graph.delete_edges(ns_prefix=f"{user_id}\x1f")
-                else:
-                    self.graph.delete_edges(ns=self._ns(user_id, agent_id or "", run_id or ""))
-            except Exception:
-                pass
         return cur.rowcount
+
+    def _purge_graph(self, **where):
+        """Erase the matching graph edges BEFORE the store rows, and fail closed. Swallowing a failure
+        here would let an erasure "succeed" (and get a signed receipt) while the subject's data lived on
+        in the graph. Purging first means a failure leaves nothing erased, so a retry is clean; the graph
+        is a projection of the store, so edges removed ahead of a failed store delete can be rebuilt."""
+        if not self.graph:
+            return
+        try:
+            self.graph.delete_edges(**where)
+        except Exception as e:
+            raise RuntimeError("erasure aborted: graph purge failed and nothing was erased — "
+                               "retry once the graph is reachable") from e
 
     def users(self):
         return [r[0] for r in self.db.execute(

@@ -64,3 +64,14 @@ def test_space_lock_is_a_real_per_key_mutex_on_sqlite(tmp_path):
 @pytest.mark.skip(reason="requires a live Postgres — run with docker-compose `postgres` + VAYL_DATABASE_URL")
 def test_postgres_path_placeholder():
     pass
+
+
+def test_add_column_if_missing_tolerates_reruns_but_surfaces_real_errors(tmp_path):
+    import sqlite3
+
+    db = Database(str(tmp_path / "m.db"))
+    db.execute("CREATE TABLE t(a TEXT)")
+    db.add_column_if_missing("t", "b TEXT")
+    db.add_column_if_missing("t", "b TEXT")                    # re-run: duplicate column is fine
+    with pytest.raises(sqlite3.OperationalError):
+        db.add_column_if_missing("no_such_table", "c TEXT")    # a real migration failure is not swallowed
