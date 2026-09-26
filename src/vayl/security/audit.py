@@ -19,6 +19,7 @@ import hashlib
 import json
 
 from vayl.storage.db import ensure
+from vayl.storage.migrations import migrate
 
 GENESIS = "0" * 64   # prev_hash of the first chained row (no predecessor)
 _SIG_TAG = "vayl.audit.v1|"        # domain tag on each entry signature (no cross-artifact replay)
@@ -36,16 +37,7 @@ class Audit:
         # then flags as tampering. We serialize on db.space_lock(_AUDIT_LOCK_KEY) — an in-process lock
         # on SQLite, and a cross-process pg_advisory_xact_lock on Postgres, so the chain stays intact
         # even with many vayl-server processes sharing one database (a plain threading.Lock could not).
-        self.db.execute(
-            f"CREATE TABLE IF NOT EXISTS audit(seq {self.db.autoincrement_pk()}, "
-            "ts TEXT, user_id TEXT, agent_id TEXT, run_id TEXT, action TEXT, detail TEXT, "
-            "prev_hash TEXT, entry_hash TEXT, signature TEXT)")
-        # migrate older logs in place (pre-chain rows keep NULL hash columns and are treated as legacy)
-        for ddl in ("prev_hash TEXT", "entry_hash TEXT", "signature TEXT"):
-            self.db.add_column_if_missing("audit", ddl)
-        # retention anchor: after a purge, the chain restarts from a SIGNED checkpoint instead of GENESIS
-        self.db.execute("CREATE TABLE IF NOT EXISTS audit_meta(key TEXT PRIMARY KEY, value TEXT, signature TEXT)")
-        self.db.commit()
+        migrate(self.db)
 
     def _anchor(self):
         row = self.db.execute("SELECT value, signature FROM audit_meta WHERE key='anchor'").fetchone()

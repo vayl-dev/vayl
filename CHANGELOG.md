@@ -21,6 +21,12 @@ All notable changes to Vayl are documented here. This project adheres to
   an error `ref` shown to a client can be traced to its request. Each request also writes one access
   line at `INFO` with method, path, status and duration, and no client IP, query string or body. Health,
   readiness and metrics probes log at `DEBUG`.
+- **Versioned schema migrations.** The schema is now one ordered list of migrations
+  (`vayl/storage/migrations.py`), recorded in a new `schema_migrations` table and applied on startup
+  under a lock (a cross-process advisory lock on Postgres). A Vayl older than the database's schema
+  refuses to start instead of writing rows it doesn't understand. `vayl-migrate status` and
+  `vayl-migrate up` show and apply migrations. Existing databases, including ones from releases before
+  0.4, are brought to the baseline (v1) automatically, with no data changes.
 - `VAYL_LOG_FORMAT=json` writes one JSON object per log line (default `text`). An unknown value fails
   at startup.
 - `VAYL_VECTOR_CACHE` (default 8192): how many decoded embeddings to keep, about 6 KB each at 1536

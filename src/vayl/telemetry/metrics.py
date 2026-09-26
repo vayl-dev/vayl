@@ -16,14 +16,10 @@ and are surfaced to the client via the `stats` MCP tool.
 class Metrics:
     def __init__(self, db, crypter=None):
         from vayl.storage.db import ensure
+        from vayl.storage.migrations import migrate
         self.db = ensure(db)  # shares the Store's Database (one backend, one lifecycle)
         self.crypter = crypter  # error messages can echo memory content → encrypt them at rest
-        self.db.execute("CREATE TABLE IF NOT EXISTS metrics(key TEXT PRIMARY KEY, value REAL NOT NULL DEFAULT 0)")
-        # explicit id PK (Postgres has no rowid); on SQLite it aliases rowid, so ordering is unchanged.
-        self.db.execute(
-            f"CREATE TABLE IF NOT EXISTS metric_errors(id {self.db.autoincrement_pk()}, "
-            "tool TEXT, etype TEXT, emsg TEXT)")
-        self.db.commit()
+        migrate(self.db)
 
     def _bump(self, key, by=1.0):
         # `metrics.value` (table-qualified) on the RHS: Postgres treats a bare `value` here as ambiguous

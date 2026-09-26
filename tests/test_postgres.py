@@ -23,8 +23,8 @@ def pg(monkeypatch):
     monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[0.0] for _ in texts])
     from vayl.storage.db import Database
     d = Database(PG)
-    for t in ("statements", "space_config", "audit", "decisions", "receipts",
-              "principals", "metrics", "metric_errors"):
+    for t in ("statements", "space_config", "audit", "audit_meta", "decisions", "receipts",
+              "principals", "metrics", "metric_errors", "schema_migrations"):
         d.execute(f"DROP TABLE IF EXISTS {t} CASCADE")
     d.commit()
     return PG
@@ -149,3 +149,15 @@ def test_advisory_lock_serializes_concurrent_cross_connection_writers(pg):
         "SELECT id FROM lock_test WHERE space='shared-space' ORDER BY id").fetchall()]
     assert ids == list(range(1, 21))                # 4 writers × 5 inserts = 20 distinct sequential ids
     d0.execute("DROP TABLE lock_test"); d0.commit()
+
+
+def test_migrations_ledger_and_version_gate_on_postgres(pg):
+    from vayl.storage import migrations
+    from vayl.storage.db import Database
+    assert migrations.migrate(Database(pg)) == [migrations.LATEST]     # fresh: baseline applied once
+    assert migrations.migrate(Database(pg)) == []                       # second process: nothing pending
+    d = Database(pg)
+    d.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, 'future', 'x')",
+              (migrations.LATEST + 1,))
+    with pytest.raises(migrations.SchemaTooNew):
+        migrations.migrate(Database(pg))
