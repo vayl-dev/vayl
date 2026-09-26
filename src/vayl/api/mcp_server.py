@@ -287,9 +287,19 @@ def remember(text: str, user_id: str = "default", agent_id: str = "", run_id: st
         _audit.record("remember", user_id, agent_id, run_id,
                       (f"[{source}] " if source else "")
                       + ("; ".join(f"{a.value} {s}" for a, s, v in results) or "no durable fact"))
-        if not results:
+        # SKIP is the engine declining to record something (a hypothetical, sarcasm, a removal with
+        # nothing to remove) — reporting it under "Stored:" told the caller the opposite.
+        stored = [(a, s, v) for a, s, v in results if a.value != "SKIP"]
+        skipped = [(s, v) for a, s, v in results if a.value == "SKIP"]
+        if not stored and not skipped:
             return "No durable fact found (looked like chatter or a question)."
-        return "Stored: " + "; ".join(f"[{a.value}] {s} = {v}" for a, s, v in results)
+        out = []
+        if stored:
+            out.append("Stored: " + "; ".join(f"[{a.value}] {s} = {v}" for a, s, v in stored))
+        if skipped:
+            out.append("Not stored (hypothetical, sarcasm, or nothing to change): "
+                       + "; ".join(f"{s} = {v}" for s, v in skipped))
+        return "\n".join(out)
     return _guard("remember", go, cap=C.WRITE, space=user_id)
 
 
@@ -360,11 +370,24 @@ def forget(text: str, user_id: str = "default", agent_id: str = "", run_id: str 
             _store.save(user_id, m, agent_id, run_id)
         _metrics.record_actions([a.value for a, _s, _v in results])
         _audit.record("forget", user_id, agent_id, run_id,
-                      "; ".join(f"{s}={v}" for a, s, v in results if a.value == "RETRACT") or "nothing to retract")
-        retracted = [(s, v) for a, s, v in results if a.value == "RETRACT"]
-        if not retracted:
-            return "Nothing matching to retract (that fact isn't currently stored)."
-        return "Retracted (retained in history for audit): " + "; ".join(f"{s} = {v}" for s, v in retracted)
+                      "; ".join(f"{a.value} {s}={v}" for a, s, v in results
+                                if a.value in ("RETRACT", "FLAG", "DEDUP")) or "nothing to retract")
+        # On a confirm-required slot the engine PROPOSES the removal (FLAG) instead of applying it,
+        # or finds the same removal already queued (DEDUP). Saying "nothing to retract" there hid a
+        # pending proposal from the caller.
+        by = {k: [(s, v) for a, s, v in results if a.value == k] for k in ("RETRACT", "FLAG", "DEDUP")}
+        out = []
+        if by["RETRACT"]:
+            out.append("Retracted (retained in history for audit): "
+                       + "; ".join(f"{s} = {v}" for s, v in by["RETRACT"]))
+        if by["FLAG"]:
+            out.append("Proposed for removal, awaiting approval (the value stays current until someone "
+                       "approves it with confirm_change; see pending_changes): "
+                       + "; ".join(f"{s} = {v}" for s, v in by["FLAG"]))
+        if by["DEDUP"]:
+            out.append("Already awaiting approval (see pending_changes): "
+                       + "; ".join(s for s, _v in by["DEDUP"]))
+        return "\n".join(out) or "Nothing matching to retract (that fact isn't currently stored)."
     return _guard("forget", go, cap=C.WRITE, space=user_id)
 
 

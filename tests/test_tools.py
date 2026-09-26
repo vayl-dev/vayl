@@ -30,6 +30,9 @@ SCRIPT = {
     "We moved off Redux to Zustand.": [_fact("SUPERSEDE", "state", "Zustand")],
     "We use Sentry for monitoring.": [_fact("ADD", "monitoring", "Sentry")],
     "We dropped Sentry.": [_fact("RETRACT", "monitoring", "Sentry")],
+    "If we used Vue it would be faster.": [_fact("SKIP", "framework", "Vue")],
+    "Patient is full code.": [_fact("ADD", "code_status", "full code")],
+    "Remove the code status.": [_fact("RETRACT", "code_status", "full code")],
 }
 
 
@@ -174,3 +177,22 @@ def test_health_reports_each_dependency():
     report = s.health()
     for part in ("db: ok", "embedder: ok", "llm: ok", "graph: disabled"):
         assert part in report
+
+
+def test_skip_is_not_reported_as_stored(uid):
+    out = s.remember("If we used Vue it would be faster.", user_id=uid)
+    assert "Stored" not in out and out.startswith("Not stored") and "framework = Vue" in out
+    assert _active(uid) == []
+
+
+def test_forget_on_a_gated_slot_reports_the_pending_proposal(uid, monkeypatch):
+    """code_status needs approval to change, so forget PROPOSES the removal. The tool used to reply
+    'Nothing matching to retract' while a proposal sat in the queue."""
+    from vayl.memory.schema import load as load_schema
+    monkeypatch.setattr(llm_memory, "SLOT_SCHEMA", load_schema("preset:clinical"))
+    s.remember("Patient is full code.", user_id=uid)
+    out = s.forget("Remove the code status.", user_id=uid)
+    assert out.startswith("Proposed for removal, awaiting approval") and "code_status" in out
+    assert _active(uid) == ["full code"]                              # nothing applied yet
+    assert "1 change(s) awaiting approval" in s.pending_changes(user_id=uid)
+    assert s.forget("Remove the code status.", user_id=uid).startswith("Already awaiting approval")
