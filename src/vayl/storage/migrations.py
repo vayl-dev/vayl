@@ -91,8 +91,25 @@ def _v1_baseline(db):
     db.execute(f"CREATE TABLE IF NOT EXISTS metric_errors(id {pk}, tool TEXT, etype TEXT, emsg TEXT)")
 
 
+def _v2_policy_per_tenant(db):
+    """Key reconcile policies by tenant. space_config's primary key was (user_id, agent_id, run_id), so
+    one tenant's set_reconcile_policy overwrote another tenant's for the same user_id. Rebuild it with
+    the tenant in the key (neither SQLite nor Postgres can change a primary key in place).
+
+    NOT additive: 0.6.x upserts against the old key and would fail on this table. The version gate is
+    what makes that safe: 0.6.x refuses to start on a v2 database (roll back by restoring a backup)."""
+    db.execute("CREATE TABLE IF NOT EXISTS space_config_v2("
+               "tenant_id TEXT NOT NULL DEFAULT 'default', user_id TEXT, agent_id TEXT, run_id TEXT, "
+               "policy TEXT, PRIMARY KEY(tenant_id, user_id, agent_id, run_id))")
+    db.execute("INSERT INTO space_config_v2(tenant_id, user_id, agent_id, run_id, policy) "
+               "SELECT COALESCE(tenant_id, 'default'), user_id, agent_id, run_id, policy FROM space_config")
+    db.execute("DROP TABLE space_config")
+    db.execute("ALTER TABLE space_config_v2 RENAME TO space_config")
+
+
 MIGRATIONS = [
     (1, "baseline", _v1_baseline),
+    (2, "policy-per-tenant", _v2_policy_per_tenant),
 ]
 LATEST = MIGRATIONS[-1][0]
 _LOCK = "vayl:schema-migrations"
@@ -156,12 +173,15 @@ def status(db):
 
 
 def main(argv=None):
-    """`vayl-migrate [status|up]` against VAYL_DATABASE_URL, else VAYL_DB (default vayl.db)."""
+    """`vayl-migrate [status|up|reproject-graph]` against VAYL_DATABASE_URL, else VAYL_DB (default
+    vayl.db). reproject-graph rebuilds the Neo4j projection for every tenant from the store."""
     argv = sys.argv[1:] if argv is None else argv
     cmd = argv[0] if argv else "status"
-    if cmd not in ("status", "up"):
-        print("usage: vayl-migrate [status|up]", file=sys.stderr)
+    if cmd not in ("status", "up", "reproject-graph"):
+        print("usage: vayl-migrate [status|up|reproject-graph]", file=sys.stderr)
         return 2
+    if cmd == "reproject-graph":
+        return _reproject_graph()
     db = Database(os.environ.get("VAYL_DATABASE_URL") or os.path.expanduser(os.environ.get("VAYL_DB", "vayl.db")))
     try:
         if cmd == "up":
@@ -177,6 +197,19 @@ def main(argv=None):
     for v, name in pending:
         print(f"  v{v}  {name:<20} PENDING")
     print(f"schema: v{max(applied, default=0)} (this Vayl: v{LATEST})")
+    return 0
+
+
+def _reproject_graph():
+    """Wipe the graph and replay every tenant's active facts. Needed once after upgrading to 0.7 with
+    the graph enabled: edges written earlier carry a namespace without the tenant, so they are
+    neither found by recall_related nor removed by an erasure until they are rebuilt."""
+    from vayl.api import mcp_server  # builds the store and attaches the graph from the env
+    if mcp_server._store.graph is None:
+        print("error: the graph is not enabled. Set VAYL_GRAPH=on and NEO4J_URI / NEO4J_USER / "
+              "NEO4J_PASSWORD, the same as for the server.", file=sys.stderr)
+        return 1
+    print(f"rebuilt the graph: {mcp_server._store.reproject_all_graphs()} edges across all tenants")
     return 0
 
 

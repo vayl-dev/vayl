@@ -110,9 +110,11 @@ class Store:
         (stdio / single-tenant) use the deployment default."""
         return _TENANT.get() or self._default_tenant
 
-    @staticmethod
-    def _ns(user_id, agent_id="", run_id=""):
-        return f"{user_id}\x1f{agent_id}\x1f{run_id}"
+    def _ns(self, user_id, agent_id="", run_id=""):
+        """Graph namespace for a space. The tenant comes first: every tenant shares one Neo4j, so the
+        namespace has to partition by tenant exactly as every SQL query does. Without it, two tenants
+        with the same user_id read and erased each other's edges."""
+        return f"{self.tenant}\x1f{user_id}\x1f{agent_id}\x1f{run_id}"
 
     def _enc(self, s):
         return self.crypter.enc(s) if self.crypter else s
@@ -205,7 +207,7 @@ class Store:
         pj = json.dumps(policy.to_dict()) if policy else None
         self.db.execute(
             "INSERT INTO space_config(user_id, agent_id, run_id, policy, tenant_id) VALUES (?,?,?,?,?) "
-            "ON CONFLICT(user_id, agent_id, run_id) DO UPDATE SET policy=excluded.policy, tenant_id=excluded.tenant_id",
+            "ON CONFLICT(tenant_id, user_id, agent_id, run_id) DO UPDATE SET policy=excluded.policy",
             (user_id, agent_id, run_id, pj, self.tenant))
         self.db.commit()
 
@@ -398,7 +400,7 @@ class Store:
             q += " AND run_id=?"; p.append(run_id)
         # graph first — prefix on user for a whole-user wipe, else the exact space
         if agent_id is None and run_id is None:
-            self._purge_graph(ns_prefix=f"{user_id}\x1f")
+            self._purge_graph(ns_prefix=f"{self.tenant}\x1f{user_id}\x1f")
         else:
             self._purge_graph(ns=self._ns(user_id, agent_id or "", run_id or ""))
         cur = self.db.execute(q, p)
@@ -450,11 +452,14 @@ class Store:
         dropped, migrated, or lost and rebuilt without re-running the extractor. Only ACTIVE facts
         are replayed — superseded and retracted ones are precisely what must NOT come back.
 
+        Covers the CURRENT tenant only: `wipe` clears that tenant's edges, never another tenant's (it
+        used to wipe the whole graph and replay one tenant). reproject_all_graphs() rebuilds everyone.
+
         Returns the number of edges written. No-op (0) when no graph is attached."""
         if not self.graph:
             return 0
         if wipe:
-            self.graph.wipe()
+            self.graph.delete_edges(ns_prefix=f"{self.tenant}\x1f")
         rows = self.db.execute(
             "SELECT user_id, agent_id, run_id, head, relation, tail, subject FROM statements "
             "WHERE tenant_id=? AND status=? ORDER BY id", (self.tenant, Status.ACTIVE.value))
@@ -467,4 +472,20 @@ class Store:
                                 ns=self._ns(user_id, agent_id or "", run_id or ""),
                                 subject=self._dec(subject) or "")
             written += 1
+        return written
+
+    def reproject_all_graphs(self):
+        """Wipe the whole graph and replay every tenant's active facts. The upgrade path when the
+        namespace format changes (0.7 put the tenant in it), and the way to clear edges left behind
+        under an old namespace. Returns edges written; 0 without a graph."""
+        if not self.graph:
+            return 0
+        self.graph.wipe()
+        written = 0
+        for (tenant,) in self.db.execute("SELECT DISTINCT tenant_id FROM statements").fetchall():
+            token = bind_tenant(tenant or self._default_tenant)
+            try:
+                written += self.reproject_graph(wipe=False)
+            finally:
+                reset_tenant(token)
         return written

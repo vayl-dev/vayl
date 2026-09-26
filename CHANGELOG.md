@@ -3,6 +3,29 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- **Reconcile policies are isolated per tenant.** The policy table was keyed by
+  `(user_id, agent_id, run_id)` without the tenant, so one tenant's `set_reconcile_policy` replaced
+  another tenant's policy for the same `user_id`. Schema migration **v2** rebuilds the table with the
+  tenant in the key and keeps existing policies.
+- **Graph edges are isolated per tenant.** The Neo4j namespace had no tenant, so two tenants with the
+  same `user_id` shared `recall_related` results, and erasing one tenant's user also removed the other
+  tenant's edges. The namespace now starts with the tenant. `reproject_graph()` used to wipe the whole
+  graph and replay only the current tenant; it now clears only that tenant's edges.
+
+### Added
+- `vayl-migrate reproject-graph` rebuilds the graph for every tenant from the store.
+
+### Upgrading
+- **Back up the database first.** Migration v2 isn't additive: 0.6 can't write policies to the rebuilt
+  table, so 0.6 refuses to start on a v2 database (the schema version check). To roll back, restore
+  the backup.
+- **If the graph is enabled, run `vayl-migrate reproject-graph` once after upgrading.** Edges written
+  before this release use the old namespace. Until they're rebuilt, `recall_related` doesn't find them
+  and erasure doesn't remove them.
+
 ## [0.6.0] — 2026-09-26
 
 Closes the approval-gate gaps, fixes `vayl-server`'s HTTP transport, and corrects configuration

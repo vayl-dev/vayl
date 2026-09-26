@@ -154,7 +154,7 @@ def test_advisory_lock_serializes_concurrent_cross_connection_writers(pg):
 def test_migrations_ledger_and_version_gate_on_postgres(pg):
     from vayl.storage import migrations
     from vayl.storage.db import Database
-    assert migrations.migrate(Database(pg)) == [migrations.LATEST]     # fresh: baseline applied once
+    assert migrations.migrate(Database(pg)) == [v for v, _n, _f in migrations.MIGRATIONS]   # fresh: all, once
     assert migrations.migrate(Database(pg)) == []                       # second process: nothing pending
     d = Database(pg)
     d.execute("INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, 'future', 'x')",
