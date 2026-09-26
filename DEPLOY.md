@@ -170,7 +170,7 @@ in `.env` (from your vendor). Check with the `license_status` tool. Omit → Com
 `VAYL_OIDC_AUDIENCE`, `VAYL_OIDC_JWKS_URL`. Users then present an IdP JWT as the Bearer token; API keys
 still work alongside.
 
-**Graph recall (Neo4j):** `docker compose --profile graph up -d`, set `VAYL_GRAPH=1` + `NEO4J_*`.
+**Graph recall (Neo4j):** `docker compose --profile graph up -d`, set `NEO4J_PASSWORD` in `.env` and `VAYL_GRAPH=1` + `NEO4J_URI=bolt://neo4j:7687` on the vayl service. Vayl refuses to start the graph without a password.
 
 ---
 

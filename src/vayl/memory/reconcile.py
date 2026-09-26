@@ -17,7 +17,6 @@ from __future__ import annotations
 import itertools
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 # Domain model  (event log → statements → current view)
 
@@ -48,10 +47,10 @@ class Statement:
     scope: str
     status: Status = Status.ACTIVE
     confidence: float = 1.0
-    supersedes: Optional[int] = None
+    supersedes: int | None = None
     raw: str = ""
     id: int = field(default_factory=lambda: next(_counter))
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
     source: str = ""                  # who/what asserted this fact — belief provenance
     # Graph triple this fact projects to. Persisted so the Neo4j projection can be REBUILT from the
     # store; without them the graph is an unrecoverable side-store rather than a projection.
@@ -78,7 +77,7 @@ SARCASM_MARKERS = ["🙄", "oh sure", "yeah right", "just kidding", "/s", "lol",
 def _norm(t: str) -> str:
     return " " + t.lower().strip() + " "
 
-def canon(v: Optional[str]) -> Optional[str]:
+def canon(v: str | None) -> str | None:
     return SYNONYMS.get(v, v) if v else v
 
 def has(text: str, markers) -> bool:

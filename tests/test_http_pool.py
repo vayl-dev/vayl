@@ -10,6 +10,8 @@ pooled path, a 4xx surfaces as an error, and the urllib fallback still works whe
 import urllib.error
 from unittest import mock
 
+import pytest
+
 from vayl.memory import llm_memory as L
 
 
@@ -57,11 +59,9 @@ def test_pooled_path_raises_on_4xx():
     pool = mock.Mock()
     pool.request.return_value = _Resp(401, b'{"error":"bad key"}')
     with mock.patch.object(L, "_POOL", pool):
-        try:
+        with pytest.raises(urllib.error.HTTPError) as err:
             L._http_json(_req(), timeout=5)
-            assert False, "should have raised"
-        except urllib.error.HTTPError as e:
-            assert e.code == 401
+        assert err.value.code == 401
 
 
 def test_urllib_fallback_used_when_no_pool():

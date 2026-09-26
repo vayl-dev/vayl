@@ -346,7 +346,7 @@ Retired facts then arrive tagged `(history)` alongside the current value. Use `h
 For deep relational questions ("who owns the company Bob works for?"):
 
 ```bash
-pip install ".[graph]"    # + run Neo4j, then set "VAYL_GRAPH": "1" in the server env
+pip install ".[graph]"    # + run Neo4j, then set "VAYL_GRAPH": "1" and "NEO4J_PASSWORD" in the server env
 ```
 
 Facts mirror into Neo4j as an entity graph; each edge is embedded on write and ranked by a native Neo4j vector index, so `recall_related` stays **50–230 ms even on high-degree hubs** — no whole-graph scan. If the graph isn't enabled (or Neo4j is down), `recall_related` falls back to slot recall. Edges are namespaced per `(user_id, agent_id, run_id)`, so `delete` / `delete_all` **purge the graph too**.

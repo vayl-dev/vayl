@@ -25,8 +25,10 @@ import concurrent.futures
 import os
 import threading
 
-_CONNECT_TIMEOUT = float(os.environ.get("VAYL_CLIENT_CONNECT_TIMEOUT", "30"))
-_CALL_TIMEOUT = float(os.environ.get("VAYL_CLIENT_CALL_TIMEOUT", "120"))
+from vayl.config import env_float
+
+_CONNECT_TIMEOUT = env_float("VAYL_CLIENT_CONNECT_TIMEOUT", 30.0)
+_CALL_TIMEOUT = env_float("VAYL_CLIENT_CALL_TIMEOUT", 120.0)
 
 
 class VaylError(RuntimeError):

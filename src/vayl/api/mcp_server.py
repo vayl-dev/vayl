@@ -65,12 +65,17 @@ def _maybe_graph():
     Fully graceful: if the driver or DB is unavailable, we run slot-only rather than crash."""
     if os.environ.get("VAYL_GRAPH", "").lower() not in ("1", "true", "yes"):
         return None
+    # A missing password is misconfiguration, not an outage: fail at startup instead of silently
+    # connecting with a well-known default.
+    if not os.environ.get("NEO4J_PASSWORD"):
+        raise RuntimeError("VAYL_GRAPH is set but NEO4J_PASSWORD is not. Set the Neo4j password, "
+                           "or unset VAYL_GRAPH to run without the graph.")
     try:
         from vayl.storage.graph_store import Neo4jGraph
         return Neo4jGraph(
             uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
             user=os.environ.get("NEO4J_USER", "neo4j"),
-            pw=os.environ.get("NEO4J_PASSWORD", "testpass123"),
+            pw=os.environ["NEO4J_PASSWORD"],
         )
     except Exception:
         # slot-only fallback — the graph is a bonus, never a hard dependency. But the operator asked
@@ -972,8 +977,16 @@ def configure_logging():
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
-def main():
+def startup():
+    """Entry-point setup: logging, then settings that are otherwise read lazily — so a typo fails at
+    launch with a clear message instead of on the first tool call."""
     configure_logging()
+    from vayl.memory.llm_memory import _provider
+    _provider()
+
+
+def main():
+    startup()
     # show_banner=False: on stdio the banner would print to the console; keep the transport clean.
     mcp.run(show_banner=False)
 

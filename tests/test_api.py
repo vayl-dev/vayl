@@ -269,3 +269,23 @@ def test_delete_issues_no_receipt_when_the_graph_purge_fails(monkeypatch):
     assert receipts() == before                                    # nothing signed
     monkeypatch.setattr(st, "graph", None)
     assert [s.value for s in st.load("erasure_u").active()] == ["Redux"]   # nothing erased
+
+
+def test_graph_without_a_password_fails_at_startup(monkeypatch):
+    """A missing NEO4J_PASSWORD is misconfiguration: refuse, don't fall back to a well-known default."""
+    monkeypatch.setenv("VAYL_GRAPH", "1")
+    monkeypatch.delenv("NEO4J_PASSWORD", raising=False)
+    with pytest.raises(RuntimeError, match="NEO4J_PASSWORD"):
+        mcp_server._maybe_graph()
+
+
+def test_graph_disabled_needs_no_password(monkeypatch):
+    monkeypatch.delenv("VAYL_GRAPH", raising=False)
+    monkeypatch.delenv("NEO4J_PASSWORD", raising=False)
+    assert mcp_server._maybe_graph() is None
+
+
+def test_neo4j_graph_refuses_an_empty_password():
+    from vayl.storage.graph_store import Neo4jGraph
+    with pytest.raises(ValueError, match="password"):
+        Neo4jGraph(pw="")

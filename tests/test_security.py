@@ -133,7 +133,8 @@ def test_wrong_key_cannot_read(tmp_path, monkeypatch):
 
     monkeypatch.setenv("VAYL_KEY", "a-different-key")   # attacker without the key
     (tmp_path / "vayl.db.salt").unlink(missing_ok=True)  # force a fresh (wrong) derived key
-    with pytest.raises(Exception):
+    from cryptography.fernet import InvalidToken
+    with pytest.raises(InvalidToken):
         Store(db).load("u1")                            # cannot decrypt
 
 

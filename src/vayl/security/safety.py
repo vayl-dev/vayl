@@ -11,7 +11,6 @@ ACT wrong": when the memory isn't safe to act on, the gate says so, with reasons
 The evaluator is pure and `now` is injected, so verdicts are deterministic and offline-testable.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -19,8 +18,8 @@ class SafetyPolicy:
     min_confidence: float = 0.7
     require_active: bool = True                          # never act on a superseded/historical fact
     block_on_flagged: bool = True                        # a FLAGGED conflict is unresolved — don't act
-    max_staleness_days: Optional[float] = None
-    block_on_recent_change_days: Optional[float] = None  # a JUST-changed fact may be volatile — hold
+    max_staleness_days: float | None = None
+    block_on_recent_change_days: float | None = None  # a JUST-changed fact may be volatile — hold
 
 
 def evaluate_fact(fact, policy, now):
