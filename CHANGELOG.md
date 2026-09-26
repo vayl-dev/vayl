@@ -3,6 +3,20 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `VAYL_DECRYPT_CACHE=off` turns off the decrypted-field and decoded-embedding caches, so plaintext
+  stays in process memory only while a call runs. It costs speed: at 1,000 facts, `remember` goes from
+  23 to 122 ms and `recall` from 59 to 273 ms. An unknown value fails at startup.
+
+### Fixed
+- **Schema migrations are atomic on SQLite.** Python's `sqlite3` module committed each schema change
+  on its own, so a migration interrupted halfway left a partial schema. Pending migrations and their
+  ledger rows now commit as one transaction under `BEGIN IMMEDIATE`, which also locks out other
+  processes sharing the file until the migration finishes. Postgres already worked this way.
+- `VAYL_VECTOR_CACHE=0` disables the vector cache instead of failing on the first recall.
+
 ## [0.5.0] — 2026-09-26
 
 Faster tool calls on large memories, versioned schema migrations, and request-level logging for the

@@ -25,7 +25,7 @@ import os
 import threading
 import time
 
-from vayl.config import env_int
+from vayl.config import env_bool, env_int
 from vayl.memory.llm_client import _embed
 from vayl.memory.llm_memory import LLMMemory
 from vayl.memory.reconcile import Statement, Status
@@ -96,6 +96,7 @@ class Store:
         # Structural columns (ids/status/confidence/scope) stay plaintext.
         self.crypter = crypto.resolve(path)
         self._vectors = {}          # sha256(stored embedding) -> decoded vector; see _vector()
+        self._vector_cap = _VECTOR_CACHE if env_bool("VAYL_DECRYPT_CACHE", True) else 0
         self._vectors_lock = threading.Lock()
         # Backend: SQLite by default (the `path`); Postgres when VAYL_DATABASE_URL is set (M6).
         self.db = Database(os.environ.get("VAYL_DATABASE_URL") or path)
@@ -154,12 +155,14 @@ class Store:
         place, so sharing one across loads is safe."""
         if not stored:
             return None
+        if self._vector_cap <= 0:
+            return self._emb_decode(self._dec(stored))
         key = hashlib.sha256(stored.encode()).digest()
         vec = self._vectors.get(key)
         if vec is None:
             vec = self._emb_decode(self._dec(stored))
             with self._vectors_lock:      # tool calls run on worker threads
-                if len(self._vectors) >= _VECTOR_CACHE:
+                if len(self._vectors) >= self._vector_cap:
                     self._vectors.pop(next(iter(self._vectors)))   # drop the oldest insert
                 self._vectors[key] = vec
         return vec

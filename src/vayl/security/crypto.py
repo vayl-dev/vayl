@@ -22,6 +22,7 @@ import hmac
 import json
 import os
 
+from vayl.config import env_bool
 from vayl.security import kms
 
 # Passphrase KDF. Fresh deployments use Argon2id — OWASP's preferred password KDF, memory-hard and
@@ -76,7 +77,7 @@ _DEC_CACHE_MAX_LEN = 2048   # ciphertext chars; embeddings (~11 KB) bypass the c
 
 
 class Crypter:
-    def __init__(self, key32):
+    def __init__(self, key32, cache=True):
         from cryptography.fernet import Fernet
         self._f = Fernet(base64.urlsafe_b64encode(key32))
         self._hk = key32
@@ -84,7 +85,8 @@ class Crypter:
         # A Fernet token is authenticated and carries a random IV, so ciphertext -> plaintext is
         # exact to cache. Short fields only: a cached embedding would cost ~14 KB an entry.
         # Hard deletes call forget() so erased plaintext does not outlive its row in process memory.
-        self._dec_short = functools.lru_cache(maxsize=_DEC_CACHE)(self._decrypt)
+        # cache=False (VAYL_DECRYPT_CACHE=off) keeps plaintext only for the duration of a call.
+        self._dec_short = functools.lru_cache(maxsize=_DEC_CACHE if cache else 0)(self._decrypt)
 
     def enc(self, s):
         return None if s is None else self._f.encrypt(s.encode()).decode()
@@ -160,8 +162,9 @@ def resolve(db_path):
         key = _derive(pw, db_path + ".salt")       # Argon2id (scrypt for pre-existing deployments)
     else:
         key = kms.data_key(db_path + ".key", 32)   # file (default) or Vault KMS provider (M7)
+    cache = env_bool("VAYL_DECRYPT_CACHE", True)   # read here so a bad value isn't reported as a missing package
     try:
-        return Crypter(key)
+        return Crypter(key, cache=cache)
     except Exception as e:
         raise RuntimeError(
             f"VAYL_ENCRYPT is on but at-rest encryption is unavailable ({type(e).__name__}: {e}). "

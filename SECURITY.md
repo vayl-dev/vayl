@@ -58,6 +58,12 @@ silently writing plaintext. Running unencrypted requires an explicit `VAYL_ENCRY
   HashiCorp Vault Transit envelope encryption (master key never leaves Vault; only a wrapped blob on
   disk; **fail-closed** if Vault is unreachable); otherwise an auto-generated `<db>.key` (`0600`) —
   protects a copied DB file, **not** a stolen machine. Pair with OS full-disk encryption.
+- **In memory:** a running process holds decrypted data while it serves a call. By default it also
+  caches decrypted short fields and decoded embeddings between calls, which makes calls on large memories
+  several times faster. Every hard delete (`forget`, erasure, retention expiry) clears both caches.
+  `VAYL_DECRYPT_CACHE=off` turns them off, so plaintext stays in memory only while a call runs, at the
+  cost of speed (at 1,000 facts: `remember` 23 → 122 ms, `recall` 59 → 273 ms). Encryption at rest
+  doesn't protect against someone who can read the process's memory.
 
 Verify: store a value, then `strings vayl.db | grep <value>` returns nothing (ciphertext is `gAAAAA…`).
 
@@ -152,6 +158,7 @@ not by itself make your processing compliant.
 | `VAYL_KEY`                        | Passphrase-derived key, kept off disk          | unset (auto key file)            |
 | `VAYL_KDF`                        | Passphrase KDF for a fresh deployment (`scrypt` to opt out) | `argon2id`           |
 | `VAYL_KMS` + `VAULT_ADDR/TOKEN`   | Vault Transit key custody (fail-closed)        | `file`                           |
+| `VAYL_DECRYPT_CACHE`              | Keep decrypted data cached between calls       | on (`off` for minimal residency) |
 | `VAYL_AUTH_REQUIRED`              | Deny tools without a bound principal           | set by `vayl-server`             |
 | `VAYL_HOST` / `VAYL_PORT`         | `vayl-server` bind address / port              | `127.0.0.1` / `8080`             |
 | `OPENAI_BASE_URL` / provider keys | LLM backend                                    | unset → local Ollama (no egress) |
