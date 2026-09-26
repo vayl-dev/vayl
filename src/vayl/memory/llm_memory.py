@@ -1,17 +1,11 @@
-#!/usr/bin/env python3
 """
-Vayl with a REAL extractor — the Finding-A fix.
-====================================================
-The heuristic prototype could only reconcile its ~6 hard-coded topics; on general
-input it stored "unknown/(unspecified)" and reconciled nothing. Here the LLM does
-BOTH jobs in one call: extract the fact's canonical (subject, value, scope) AND
-classify its relationship to existing facts. That is the "unified
-extraction+normalization+reconciliation" model the report argues for.
+The LLM-driven memory engine: extraction, reconciliation, retrieval, and answering.
 
-Honest-uncertainty gate preserved: below the confidence threshold on a resolving
-action, we FLAG instead of guessing.
-
-    OPENAI_API_KEY=... python3 -m vayl.memory.llm_memory
+One LLM call extracts a statement's canonical (subject, value, scope) AND classifies its relationship
+to the facts already held; `LLMMemory._apply` then reconciles deterministically — the same-slot
+invariant, declared slots, events vs state, confirmation gates — so the trust properties live in
+code rather than in the prompt. Below the confidence threshold a resolving action is FLAGGED rather
+than guessed.
 """
 import itertools
 import json
@@ -1293,34 +1287,3 @@ class LLMMemory:
         triples = _rank_triples(question, [(h, rel, t) for h, rel, t, vv in edges if vv], k)
         context = "; ".join(f"{h} {rel} {t}" for h, rel, t in triples) or "(no facts)"
         return _qa(context, question), seeds, triples
-
-
-CASES = [
-    ("C1 state-mgmt (Zustand→Redux)", ["We use Zustand for state.", "We switched to Redux Toolkit, dropping Zustand."]),
-    ("C2 casing (forget snake_case)", ["API returns snake_case JSON.", "Forget snake_case — we standardized on camelCase."]),
-    ("C3 favorite color (blue→green)  [was garbage before]", ["My favorite color is blue.", "Actually my favorite color is green now."]),
-    ("C4 general (employer change)     [never seen before]", ["I work at Company A.", "I just started a new job at Company B."]),
-]
-
-def main():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Set ANTHROPIC_API_KEY."); return
-    print("\n\033[1mVAYL + LLM extractor — general reconciliation\033[0m")
-    print("=" * 66)
-    for name, msgs in CASES:
-        m = LLMMemory()
-        print(f"\n\033[1m{name}\033[0m")
-        for t in msgs:
-            for act, subj, val in m.add(t):
-                print(f"  add {t!r:52} → {act.value:9} [{subj}={val}]")
-        act, flg, sup, hist = m.view()
-        answer = (act[0].value if len(act) == 1 and not flg
-                  else ("⚠ " + ", ".join(s.value for s in act + flg) if flg
-                        else " · ".join(f"{s.value}[{s.scope}]" for s in act) or "(nothing)"))
-        retired = f"  (retired: {', '.join(s.value for s in sup)})" if sup else ""
-        archived = f"  (history: {', '.join(s.value for s in hist)})" if hist else ""
-        good = "\033[32m✓\033[0m" if len(act) == 1 and not flg else "\033[33m~\033[0m"
-        print(f"  {good} current answer: \033[1m{answer}\033[0m{retired}{archived}")
-
-if __name__ == "__main__":
-    main()
