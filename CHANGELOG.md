@@ -3,7 +3,10 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.1] — 2026-09-26
+
+A hardening patch: atomic schema migrations on SQLite and an opt-out for the in-memory decrypt caches.
+No action needed to upgrade.
 
 ### Added
 - `VAYL_DECRYPT_CACHE=off` turns off the decrypted-field and decoded-embedding caches, so plaintext
