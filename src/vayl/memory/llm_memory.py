@@ -15,6 +15,7 @@ action, we FLAG instead of guessing.
 """
 import itertools
 import json
+import logging
 import os
 import random
 import re
@@ -32,6 +33,8 @@ from vayl.memory.reconcile import (
     canon,
     has,
 )
+
+log = logging.getLogger(__name__)
 
 AUTO_THRESHOLD = 0.7
 
@@ -763,7 +766,8 @@ class LLMMemory:
             try:
                 self.graph.retire_subject_edges(str(subject), ns=self.ns)
             except Exception:
-                pass
+                log.warning("graph: could not retire edges for %r; the graph may serve a stale edge "
+                            "until it is rebuilt", subject, exc_info=True)
 
     def _gwrite(self, o, act):
         """Mirror a fact into the Neo4j projection as an entity triple, if a graph is attached."""
@@ -782,7 +786,7 @@ class LLMMemory:
             if anchored and anchored != str(head):
                 head = anchored
         except Exception:
-            pass
+            log.debug("graph: head lookup failed; using the extracted head", exc_info=True)
         if act in (Action.SUPERSEDE, Action.REFINE):
             self.graph.supersede_edge(str(head), str(rel), str(tail), ns=self.ns, subject=subj)
         elif act == Action.RETRACT:
@@ -1277,7 +1281,7 @@ class LLMMemory:
                 context = "; ".join(f"{h} {rel} {t}" for h, rel, t in triples)
                 return _qa(context, question), ["(vector)"], triples
         except Exception:
-            pass
+            log.debug("graph: vector search unavailable; falling back to entity search", exc_info=True)
         # Fallback (no embeddings/index): index-seed -> capped neighborhood -> python rank.
         seeds = self.graph.search_entities(question, ns=ns)
         if not seeds:

@@ -18,6 +18,7 @@ import base64
 import contextvars
 import itertools
 import json
+import logging
 import os
 import time
 
@@ -25,6 +26,8 @@ from vayl.memory.llm_memory import LLMMemory, _embed
 from vayl.memory.reconcile import Statement, Status
 from vayl.security import crypto
 from vayl.storage.db import Database
+
+log = logging.getLogger(__name__)
 
 _HOT = ("ACTIVE", "FLAGGED_CONFLICT")   # statuses kept in the in-memory working set
 
@@ -241,8 +244,8 @@ class Store:
             try:
                 for s, v in zip(need, _embed([_embed_text(s) for s in need])):
                     s._emb = v
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning("embedding unavailable (%s); recall degrades to lexical ranking", e)
         to_insert = [s for s in m.statements if s.id not in loaded]
         to_update = [s for s in m.statements if s.id in loaded and (s.status.value, s.value) != loaded[s.id]]
         with self.db.transaction():   # inserts + updates land atomically, or not at all
