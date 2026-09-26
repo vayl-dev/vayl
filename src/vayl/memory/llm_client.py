@@ -11,6 +11,7 @@ import os
 import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from vayl.config import env_float, env_int
@@ -148,7 +149,8 @@ def _embed_config():
     # nomic-embed-text stays the default everywhere it was (Ollama, vLLM, …); only OpenAI itself,
     # which has no such model, gets its own.
     model = os.environ.get("EMBED_MODEL") or (
-        "text-embedding-3-small" if "api.openai.com" in base else "nomic-embed-text")
+        "text-embedding-3-small" if urllib.parse.urlsplit(base).hostname == "api.openai.com"
+        else "nomic-embed-text")
     return base, key or "ollama", model
 
 

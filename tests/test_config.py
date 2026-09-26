@@ -100,3 +100,13 @@ def test_cli_help_and_version_answer_without_starting_or_touching_a_db(tmp_path,
         out = capsys.readouterr().out
         assert f"usage: {prog}" in out and f"{prog} {vayl.__version__}" in out
     assert list(tmp_path.iterdir()) == []
+
+
+def test_embedder_model_default_matches_the_openai_host_exactly(monkeypatch):
+    from vayl.memory.llm_client import _embed_config
+    for k in ("OPENAI_API_KEY", "EMBED_BASE_URL", "EMBED_MODEL", "EMBED_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com.proxy.example/v1")
+    assert _embed_config()[2] == "nomic-embed-text"          # look-alike host is not OpenAI
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    assert _embed_config()[2] == "text-embedding-3-small"
