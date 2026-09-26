@@ -89,7 +89,7 @@ def test_fresh_database_is_created_at_the_latest_version(tmp_path, monkeypatch):
     monkeypatch.setenv("VAYL_ENCRYPT", "off")
     st = Store(str(tmp_path / "v.db"))
     applied, pending = migrations.status(st.db)
-    assert list(applied) == [migrations.LATEST] and pending == []
+    assert list(applied) == [v for v, _n, _f in migrations.MIGRATIONS] and pending == []
     assert migrations.migrate(st.db) == []                    # already current: nothing re-runs
     for t in ("statements", "space_config", "principals", "audit", "audit_meta", "decisions",
               "receipts", "metrics", "metric_errors"):
@@ -113,7 +113,7 @@ def test_pre_ledger_database_is_upgraded_in_place_without_losing_rows(tmp_path):
     old.commit()
 
     d = Database(path)
-    assert migrations.migrate(d) == [1]
+    assert migrations.migrate(d) == [v for v, _n, _f in migrations.MIGRATIONS]
     assert {"tenant_id", "subject_hmac", "head", "embedding"} <= _cols(d, "statements")
     assert {"scopes", "tenant"} <= _cols(d, "principals")
     assert d.execute("SELECT value, tenant_id FROM statements").fetchone() == ("v", "default")
@@ -172,8 +172,9 @@ def test_a_failing_migration_leaves_nothing_behind(tmp_path, monkeypatch):
         db.add_column_if_missing("statements", "doomed TEXT")
         raise RuntimeError("migration 2 failed midway")
 
-    monkeypatch.setattr(migrations, "MIGRATIONS", [*migrations.MIGRATIONS, (2, "boom", boom)])
-    monkeypatch.setattr(migrations, "LATEST", 2)
+    real = list(migrations.MIGRATIONS)
+    monkeypatch.setattr(migrations, "MIGRATIONS", [*real, (migrations.LATEST + 1, "boom", boom)])
+    monkeypatch.setattr(migrations, "LATEST", migrations.LATEST + 1)
     path = str(tmp_path / "v.db")
     with pytest.raises(RuntimeError, match="midway"):
         migrations.migrate(Database(path))
@@ -182,9 +183,9 @@ def test_a_failing_migration_leaves_nothing_behind(tmp_path, monkeypatch):
     assert "half_done" not in tables and "statements" not in tables       # v1 rolled back with it
     assert "schema_migrations" not in tables or not list(d.execute("SELECT * FROM schema_migrations"))
 
-    monkeypatch.setattr(migrations, "MIGRATIONS", migrations.MIGRATIONS[:1])
-    monkeypatch.setattr(migrations, "LATEST", 1)
-    assert migrations.migrate(Database(path)) == [1]                      # a clean retry succeeds
+    monkeypatch.setattr(migrations, "MIGRATIONS", real)
+    monkeypatch.setattr(migrations, "LATEST", real[-1][0])
+    assert migrations.migrate(Database(path)) == [v for v, _n, _f in real]   # a clean retry succeeds
 
 
 def test_concurrent_migrators_apply_each_migration_once(tmp_path):
@@ -206,5 +207,46 @@ def test_concurrent_migrators_apply_each_migration_once(tmp_path):
         t.start()
     for t in threads:
         t.join()
-    assert not errors and ran == [1]
-    assert list(Database(path).execute("SELECT version FROM schema_migrations")) == [(1,)]
+    every = [v for v, _n, _f in migrations.MIGRATIONS]
+    assert not errors and ran == every
+    assert [r[0] for r in Database(path).execute("SELECT version FROM schema_migrations ORDER BY version")] == every
+
+
+def test_v2_keeps_existing_policies_and_lets_tenants_share_a_user_id(tmp_path, monkeypatch):
+    from vayl.storage import migrations
+    path = str(tmp_path / "v.db")
+    v1_only = migrations.MIGRATIONS[:1]
+    with monkeypatch.context() as mp:                                    # a database still at v1
+        mp.setattr(migrations, "MIGRATIONS", v1_only)
+        mp.setattr(migrations, "LATEST", 1)
+        d = Database(path)
+        migrations.migrate(d)
+        d.execute("INSERT INTO space_config(user_id, agent_id, run_id, policy, tenant_id) "
+                  "VALUES ('u1', '', '', '{\"mode\": \"REVIEW\"}', 'acme')")
+        d.commit()
+    d = Database(path)
+    assert migrations.migrate(d) == [2]
+    assert list(d.execute("SELECT tenant_id, user_id, policy FROM space_config")) == [
+        ("acme", "u1", '{"mode": "REVIEW"}')]
+    d.execute("INSERT INTO space_config(user_id, agent_id, run_id, policy, tenant_id) "
+              "VALUES ('u1', '', '', '{\"mode\": \"AUTHORITY\"}', 'globex')")   # was a PK clash
+    d.commit()
+    assert d.execute("SELECT COUNT(*) FROM space_config").fetchone()[0] == 2
+
+
+def test_cli_reproject_graph_refuses_without_a_graph(tmp_path, monkeypatch, capsys):
+    from vayl.api import mcp_server
+    from vayl.storage import migrations
+    monkeypatch.setattr(mcp_server._store, "graph", None)
+    assert migrations.main(["reproject-graph"]) == 1
+    assert "the graph is not enabled" in capsys.readouterr().err
+
+
+def test_cli_reproject_graph_rebuilds_every_tenant(monkeypatch, capsys):
+    from vayl.api import mcp_server
+    from vayl.storage import migrations
+    calls = []
+    monkeypatch.setattr(mcp_server._store, "graph", object())
+    monkeypatch.setattr(mcp_server._store, "reproject_all_graphs", lambda: calls.append(1) or 7)
+    assert migrations.main(["reproject-graph"]) == 0 and calls == [1]
+    assert "7 edges across all tenants" in capsys.readouterr().out

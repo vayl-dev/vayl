@@ -333,7 +333,7 @@ def test_delete_all_whole_user_purges_graph_by_prefix(tmp_path):
                           head="team", relation="uses", tail="Redux"), "x")
     st.save("u1", m)
     st.delete_all("u1")                                  # no agent/run -> whole user
-    assert {"ns": None, "ns_prefix": "u1\x1f", "subject": None} in g.deleted
+    assert {"ns": None, "ns_prefix": "default\x1fu1\x1f", "subject": None} in g.deleted
 
 
 def test_delete_subject_purges_graph_scoped_to_subject(tmp_path):
@@ -344,7 +344,7 @@ def test_delete_subject_purges_graph_scoped_to_subject(tmp_path):
                           head="team", relation="uses", tail="Redux"), "x")
     st.save("u1", m)
     st.delete("u1", "state")
-    assert {"ns": "u1\x1f\x1f", "ns_prefix": None, "subject": "state"} in g.deleted
+    assert {"ns": "default\x1fu1\x1f\x1f", "ns_prefix": None, "subject": "state"} in g.deleted
 
 
 def test_history_rows_are_embedded_so_they_can_be_found_semantically(tmp_path, monkeypatch):
@@ -524,3 +524,60 @@ def test_erasure_purges_the_graph_then_the_store(tmp_path):
     assert st.delete("alice", "state") == 1
     assert g.calls == [{"ns": st._ns("alice", "", ""), "subject": "state"}]
     assert st.load("alice").statements == []
+
+
+# ── tenant isolation: policies and the graph namespace ──
+
+def _as_tenant(tenant, fn):
+    token = store_mod.bind_tenant(tenant)
+    try:
+        return fn()
+    finally:
+        store_mod.reset_tenant(token)
+
+
+def test_reconcile_policies_are_per_tenant(tmp_path):
+    """space_config was keyed without the tenant: globex setting a policy for user u1 overwrote acme's."""
+    from vayl.memory.orgmemory import ReconcileMode, ReconcilePolicy
+    st = Store(str(tmp_path / "vayl.db"))
+    _as_tenant("acme", lambda: st.set_policy("u1", ReconcilePolicy(mode=ReconcileMode.REVIEW)))
+    _as_tenant("globex", lambda: st.set_policy("u1", ReconcilePolicy(mode=ReconcileMode.AUTHORITY)))
+    assert _as_tenant("acme", lambda: st.get_policy("u1")).mode is ReconcileMode.REVIEW
+    assert _as_tenant("globex", lambda: st.get_policy("u1")).mode is ReconcileMode.AUTHORITY
+
+
+def test_graph_namespace_and_rebuild_are_per_tenant(tmp_path):
+    g = FakeGraph()
+    st = Store(str(tmp_path / "vayl.db"), graph=g)
+
+    def write(employer):
+        m = st.load("u1")
+        m._apply(_triple_o("bob_employer", employer, "Bob", "WORKS_AT", employer), "x")
+        st.save("u1", m)
+    _as_tenant("acme", lambda: write("Acme"))
+    _as_tenant("globex", lambda: write("Globex"))
+    assert {(t, ns) for _h, _r, t, ns, _s in g.edges} == {
+        ("Acme", "acme\x1fu1\x1f\x1f"), ("Globex", "globex\x1fu1\x1f\x1f")}
+
+    # rebuilding one tenant clears only that tenant's namespace — it used to wipe the whole graph
+    g.wipe_calls = 0
+    g.wipe = lambda: setattr(g, "wipe_calls", g.wipe_calls + 1)
+    _as_tenant("acme", st.reproject_graph)
+    assert g.wipe_calls == 0 and {"ns": None, "ns_prefix": "acme\x1f", "subject": None} in g.deleted
+    # erasing a whole user is scoped to the caller's tenant too
+    _as_tenant("acme", lambda: st.delete_all("u1"))
+    assert {"ns": None, "ns_prefix": "acme\x1fu1\x1f", "subject": None} in g.deleted
+
+
+def test_reproject_all_graphs_replays_every_tenant(tmp_path):
+    g = FakeGraph()
+    st = Store(str(tmp_path / "vayl.db"), graph=g)
+    for tenant, employer in (("acme", "Acme"), ("globex", "Globex")):
+        def write(employer=employer):
+            m = st.load("u1")
+            m._apply(_triple_o("bob_employer", employer, "Bob", "WORKS_AT", employer), "x")
+            st.save("u1", m)
+        _as_tenant(tenant, write)
+    g.wipe()
+    assert st.reproject_all_graphs() == 2
+    assert {ns.split("\x1f")[0] for _h, _r, _t, ns, _s in g.edges} == {"acme", "globex"}
