@@ -426,11 +426,11 @@ git clone https://github.com/vayl-dev/vayl && cd vayl
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,server,postgres]"      # editable install + dev & optional extras
 
-pytest                # 551 offline unit tests — what CI runs
+pytest                # the offline unit suite — what CI runs
 ruff check .          # lint
 ```
 
-New behaviour needs a test, and `ruff check .` must pass. The audit hash-chain is a security guarantee: changes under `security/audit.py` need a concurrency test (see `tests/test_accountability.py`). For anything substantial, open an issue first. Full guide, project layout, and free-threaded-Python setup: [`CONTRIBUTING.md`](CONTRIBUTING.md). By contributing, you agree your contributions are licensed under Apache-2.0.
+New behaviour needs a test, and `ruff check .` must pass. The audit hash-chain is a security guarantee: changes under `security/audit.py` need a concurrency test (see `tests/test_accountability.py`). For anything substantial, open an issue first. Full guide: [Local development](https://vayl.gitbook.io/vayl-docs/documentation/development/local-development) and [Contributing](https://vayl.gitbook.io/vayl-docs/documentation/development/contributing) in the docs, plus [`CONTRIBUTING.md`](CONTRIBUTING.md). By contributing, you agree your contributions are licensed under Apache-2.0.
 
 ## Security
 
