@@ -32,6 +32,7 @@ from vayl.auth.auth import Capability as C
 from vayl.licensing import license as license_mod
 from vayl.licensing import receipts as receipts_mod
 from vayl.licensing.receipts import Receipts
+from vayl.memory import llm_memory
 from vayl.memory.decisions import Decisions
 from vayl.security import crypto
 from vayl.security.audit import Audit
@@ -263,6 +264,11 @@ def remember(text: str, user_id: str = "default", agent_id: str = "", run_id: st
     reconciliation in a shared space (see set_reconcile_policy). Examples: 'We switched from Zustand
     to Redux Toolkit', 'Alice is the new team lead'."""
     def go():
+        if not _may_write_as(source):
+            return _deny("remember", f"not authorized to write as trusted source '{source}'",
+                         f"Access denied: '{source}' is a trusted source (VAYL_TRUSTED_SOURCES), so its "
+                         f"changes skip the confirmation gate. Only a key named '{source}', or one with "
+                         f"the 'approve' capability, may write as it.")
         with _store.db.space_lock(_space_key(user_id, agent_id, run_id)):
             m = _store.load(user_id, agent_id, run_id)
             before = {s.id for s in m.statements}
@@ -705,6 +711,16 @@ def pending_changes(user_id: str = "default", agent_id: str = "", run_id: str = 
         return (f"{len(rows)} change(s) awaiting approval:\n" + "\n".join(lines)
                 + "\n\nApprove with confirm_change(memory_id), discard with reject_change(memory_id).")
     return _guard("pending_changes", go, cap=C.READ, space=user_id)
+
+
+def _may_write_as(source):
+    """A trusted source (VAYL_TRUSTED_SOURCES) bypasses the confirmation gate, and `source` is a string
+    the caller chooses — so claiming one is itself an approval. Allow it only for the key that IS that
+    source (an integration key named e.g. 'fhir') or a caller who could approve the change anyway."""
+    if not source or source.strip().lower() not in llm_memory._TRUSTED_SOURCES:
+        return True
+    p = _current_principal()
+    return p is not None and (p.can(C.APPROVE) or p.name.strip().lower() == source.strip().lower())
 
 
 def _approver(note=""):
