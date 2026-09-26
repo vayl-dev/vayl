@@ -3,7 +3,11 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.7.0] â€” 2026-09-27
+
+Tenant isolation completed across policies, the graph, decisions, receipts, the audit log and
+principal management, plus correctness fixes from a docs-against-code audit. **Read Upgrading below:
+migration v2 is not additive, so back up first, and graph users rebuild the graph once.**
 
 ### Fixed
 - **A same-scope COEXIST can't leave two active values.** A model that labelled a change COEXIST but
@@ -290,6 +294,7 @@ old, removals retract, ambiguous input is flagged, and history stays queryable â
 (`vayl-mcp`) or an authenticated team server (`vayl-server`). SQLite by default, optional Postgres;
 encryption at rest, an Ed25519-signed tamper-evident audit chain, RBAC, and GDPR tools.
 
+[0.7.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.7.0
 [0.6.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.6.0
 [0.5.1]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.1
 [0.5.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.0
