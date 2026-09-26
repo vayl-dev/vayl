@@ -217,7 +217,7 @@ def _guard(tool, fn, cap=None, space=None):
         return _deny(tool, f"principal {principal.id} is not scoped to the requested space",
                      f"Access denied: '{tool}' targets a memory space outside your assigned scope.")
     t0 = time.perf_counter()
-    err = None
+    err: Exception | None = None
     ref = None
     try:
         return fn()

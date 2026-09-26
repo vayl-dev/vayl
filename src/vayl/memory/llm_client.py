@@ -45,7 +45,7 @@ def _http_json(req, timeout, retries=10):
                 if r.status >= 400:
                     raise urllib.error.HTTPError(req.full_url, r.status,
                                                  r.data[:200].decode("utf-8", "replace"),
-                                                 r.headers, None)
+                                                 r.headers, None)  # type: ignore[arg-type]  # _retry_after only needs .get()
                 return json.loads(r.data)
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.loads(r.read())

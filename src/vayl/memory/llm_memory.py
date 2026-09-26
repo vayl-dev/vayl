@@ -15,6 +15,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 
 from vayl.config import env_float, env_int
 from vayl.memory import llm_client, retrieval
@@ -339,7 +340,7 @@ def _qa(context, question):
     req = urllib.request.Request(url, data=payload, headers=hdr)
     return llm_client._http_json(req, 30)["choices"][0]["message"]["content"].strip()
 
-_EXTRACT_JSON_RETRIES = env_int("VAYL_EXTRACT_RETRIES", 2)
+_EXTRACT_JSON_RETRIES = max(0, env_int("VAYL_EXTRACT_RETRIES", 2))   # <0 would skip the call entirely
 
 # ── PRE-LLM DEDUP ──
 # The write path spends one LLM call per message even when the message is a verbatim restatement of
@@ -374,6 +375,7 @@ def llm_extract_classify(text, active):
         except (ValueError, KeyError):        # unparseable JSON / missing field
             if attempt == _EXTRACT_JSON_RETRIES:
                 raise
+    assert obj is not None   # the loop runs at least once: it either set obj or raised
     out = obj.get("facts")
     if out is None:                       # fallback: model returned a single-fact object
         out = [obj] if obj.get("subject") else []
@@ -542,6 +544,11 @@ class LLMMemory:
         self.graph = graph
         self.ns = ns                # (user/agent/run) namespace stamped on graph edges for scoped erasure
         self.policy = policy        # optional source-aware ReconcilePolicy for a shared space (Feature 4)
+        # Wired by Store.load(): lazy loaders for embeddings and retired history, and a snapshot of the
+        # loaded rows so save() writes only what changed. A fresh memory has none of them.
+        self._hydrate: Callable[[], object] | None = None
+        self._hydrate_history: Callable[[], list[Statement]] | None = None
+        self._loaded: dict = {}
 
     def active(self):
         return [s for s in self.statements if s.status == Status.ACTIVE]
@@ -1000,7 +1007,7 @@ class LLMMemory:
         if cached is not None:
             return cached
         fetch = getattr(self, "_hydrate_history", None)
-        pool = []
+        pool: list[Statement] = []
         if fetch:
             try:
                 pool = fetch() or []

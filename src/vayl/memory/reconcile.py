@@ -57,6 +57,11 @@ class Statement:
     head: str = ""
     relation: str = ""
     tail: str = ""
+    # Set by the store on load. Declared so the state is explicit and type-checked; kept out of equality
+    # and repr, as when these were ad-hoc attributes.
+    created_at: float | None = field(default=None, compare=False, repr=False)
+    _emb: list[float] | None = field(default=None, init=False, compare=False, repr=False)
+    _has_emb: bool = field(default=False, init=False, compare=False, repr=False)
 
 # Value normalization + marker helpers used by the LLM reconciler (llm_memory.py)
 

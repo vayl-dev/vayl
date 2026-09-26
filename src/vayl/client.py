@@ -21,6 +21,7 @@ be overridden per call.
 The MCP session is async; this wraps it on a background event loop so your code stays synchronous.
 Use it as a context manager, or call `.close()` when done.
 """
+import asyncio
 import concurrent.futures
 import os
 import threading
@@ -66,11 +67,10 @@ class Vayl:
         self._env = env
         self._scope = {"user_id": user_id, "agent_id": agent_id, "run_id": run_id}
 
-        self._q = None                                   # asyncio.Queue, created on the loop
+        self._q: asyncio.Queue | None = None             # created on the loop
         self._tool_accepts = {}                           # tool name -> set of accepted param names
-        self._connected = concurrent.futures.Future()    # resolves once the session is live
+        self._connected: concurrent.futures.Future[bool] = concurrent.futures.Future()  # session live
         self._closed = False
-        import asyncio
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._loop.run_forever, name="vayl-client", daemon=True)
         self._thread.start()
@@ -81,7 +81,6 @@ class Vayl:
 
     # ── the async session, owned entirely by the background loop ──
     async def _serve(self):
-        import asyncio
 
         from mcp import ClientSession
 
@@ -116,6 +115,7 @@ class Vayl:
             self._tool_accepts = {}   # best-effort: fall back to sending the full scope
         if not self._connected.done():
             self._connected.set_result(True)
+        assert self._q is not None   # _serve creates it before handing over
         while True:
             item = await self._q.get()
             if item is None:                              # close() signal
@@ -132,7 +132,8 @@ class Vayl:
         """Call any tool by name; returns its text result. Prefer the named methods where they exist."""
         if self._closed:
             raise VaylError("client is closed")
-        fut = concurrent.futures.Future()
+        fut: concurrent.futures.Future[str] = concurrent.futures.Future()
+        assert self._q is not None   # set before the constructor returns
         scoped = _merge_scope(self._scope, args, self._tool_accepts.get(tool))
         self._loop.call_soon_threadsafe(self._q.put_nowait, (tool, scoped, fut))
         return fut.result(timeout=_CALL_TIMEOUT)
