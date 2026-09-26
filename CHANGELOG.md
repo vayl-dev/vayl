@@ -3,7 +3,11 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] â€” 2026-09-26
+
+Closes the approval-gate gaps, fixes `vayl-server`'s HTTP transport, and corrects configuration
+defaults found in a full docs-against-code audit. **Read Upgrading below**: approvals now need the
+`approve` capability, and embeddings follow `OPENAI_API_KEY`.
 
 ### Security
 - **Only a person can approve a gated change.** `confirm_change` and `reject_change` used to need only
@@ -226,6 +230,7 @@ old, removals retract, ambiguous input is flagged, and history stays queryable â
 (`vayl-mcp`) or an authenticated team server (`vayl-server`). SQLite by default, optional Postgres;
 encryption at rest, an Ed25519-signed tamper-evident audit chain, RBAC, and GDPR tools.
 
+[0.6.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.6.0
 [0.5.1]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.1
 [0.5.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.0
 [0.4.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.4.0
