@@ -52,7 +52,9 @@ Show the edition (Community or licensed), seats used vs. allowed, expiry, and un
 stats()
 ```
 
-On-device KPIs — per-tool call counts, average latency, errors (with recent error detail), and the distribution of reconciliation actions. Nothing leaves the machine.
+On-device KPIs — per-tool call counts, average latency, error counts, recent errors, and the distribution of reconciliation actions. Nothing leaves the machine.
+
+The **text** of recent errors is shown to admins only: it can carry memory content, and metrics span every tenant in the deployment. Other roles see the tool and the error type.
 
 ## health
 
@@ -60,8 +62,8 @@ On-device KPIs — per-tool call counts, average latency, errors (with recent er
 health()
 ```
 
-Diagnose setup — checks the database, embedder, LLM, and graph (if enabled) are reachable. Run this first if something isn't working.
+Diagnose setup — checks the database, embedder, LLM, and graph (if enabled) are reachable. It makes one attempt per dependency, so an unreachable one is reported immediately rather than after retries. Run this first if something isn't working.
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Roles, capabilities, and scopes that these principals carry.</td><td><a href="../core-concepts/authentication-and-access.md">authentication-and-access.md</a></td></tr><tr><td><h4><i class="fa-globe" style="color:$primary;">:globe:</i> Deploying vayl-server</h4></td><td>Stand up the authenticated team server, with Docker and Postgres.</td><td><a href="../guides/deploying-vayl-server.md">deploying-vayl-server.md</a></td></tr><tr><td><h4><i class="fa-wrench" style="color:$primary;">:wrench:</i> Troubleshooting</h4></td><td>If <code>health</code> or <code>stats</code> surfaces a problem, start here.</td><td><a href="../reference/troubleshooting.md">troubleshooting.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Roles, capabilities, and scopes that these principals carry.</td><td></td></tr><tr><td><h4><i class="fa-globe" style="color:$primary;">:globe:</i> Deploying vayl-server</h4></td><td>Stand up the authenticated team server, with Docker and Postgres.</td><td></td></tr><tr><td><h4><i class="fa-wrench" style="color:$primary;">:wrench:</i> Troubleshooting</h4></td><td>If <code>health</code> or <code>stats</code> surfaces a problem, start here.</td><td></td></tr></tbody></table>

@@ -29,7 +29,7 @@ The server listens on `http://VAYL_HOST:VAYL_PORT/mcp`.
 
 ## 2. Authentication
 
-Every request to `/mcp` must send `Authorization: Bearer vayl_sk_…`. A missing or invalid key returns `401`. See [Authentication & access](../core-concepts/authentication-and-access.md) for the full model.
+Every request to `/mcp` must send `Authorization: Bearer vayl_sk_…`. A missing or invalid key returns `401`. See Authentication & access for the full model.
 
 ### Bootstrap the first admin
 
@@ -66,6 +66,8 @@ Behind a proxy the socket peer is the proxy, so also set:
 * `VAYL_ALLOWED_HOSTS` — your public host(s), so DNS-rebinding protection allows legitimate traffic (it stays enabled either way).
 {% endhint %}
 
+**Rate limiting.** The built-in limit (`VAYL_RATE_PER_MIN`, default 120 requests per minute per client IP) is kept in memory **per process**: with N `vayl-server` processes the effective ceiling is N × the setting. For a single global limit, rate-limit at your proxy or ingress — the layer that sees all traffic.
+
 ## 5. Storage and scaling
 
 SQLite is the default — one file, nothing to operate. For multiple concurrent writers, point Vayl at Postgres:
@@ -86,18 +88,25 @@ By default the encryption and signing keys are auto-generated files beside the d
 VAYL_KMS=vault VAULT_ADDR=https://vault:8200 VAULT_TOKEN=… vayl-server
 ```
 
-Vault Transit envelope-encrypts the data key: the master key never leaves Vault, only a wrapped blob sits on disk, and it is unwrapped into memory at startup. If Vault is unreachable, Vayl **fails closed** (won't start) rather than run unencrypted.
+Vault Transit envelope-encrypts the data key: the master key never leaves Vault, only a wrapped blob sits on disk, and it is unwrapped into memory at startup. If Vault is unreachable, Vayl **fails closed** (won't start) rather than run unencrypted. `VAULT_TOKEN` is required, and any `VAYL_KMS` value other than `file` or `vault` is rejected at startup.
+
+## 7. Logging
+
+Vayl logs to stderr (never stdout, which the stdio transport uses). Set `VAYL_LOG_LEVEL` — `WARNING` by default. `ERROR` lines carry a reference, the exception type and the code location, but never the exception text, which can contain memory content. That detail is logged only at `DEBUG`, so enable `DEBUG` deliberately and treat those logs as sensitive.
 
 ## Hardening checklist
 
 * [ ] Behind a TLS-terminating proxy; never `0.0.0.0` raw.
 * [ ] `VAYL_ALLOWED_HOSTS` and `VAYL_TRUSTED_PROXY_HOPS` set for your topology.
+* [ ] A global rate limit at the proxy if you run more than one `vayl-server` process.
 * [ ] Non-admin keys are **scoped**; rotate by re-issuing.
 * [ ] `/metrics` on an internal network or gated with `VAYL_METRICS_TOKEN`.
 * [ ] Encryption + signing on (default); `VAYL_KMS=vault` for production key custody.
+* [ ] If the graph is enabled: `NEO4J_PASSWORD` set (Vayl refuses to start the graph without one).
+* [ ] `VAYL_LOG_LEVEL` at `WARNING` or `INFO` in production — `DEBUG` logs can contain memory content.
 * [ ] OS full-disk encryption; restrict permissions on the data directory.
 
 ## Next
 
-* [Configuration](../reference/configuration.md) — every environment variable.
+* Configuration — every environment variable.
 * Safety gates & human approval — guardrails for high-stakes agents.

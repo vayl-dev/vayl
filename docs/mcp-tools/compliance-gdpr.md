@@ -5,7 +5,7 @@ icon: scale-balanced
 
 # Compliance (GDPR)
 
-Building blocks for data-subject rights. These tools need the `delete` or `admin` capability — see [Authentication & access](../core-concepts/authentication-and-access.md). A `?` marks an optional argument.
+Building blocks for data-subject rights. These tools need the `delete` or `admin` capability — see Authentication & access. A `?` marks an optional argument.
 
 ## delete
 
@@ -22,6 +22,10 @@ delete_all(user_id?, agent_id?, run_id?)
 ```
 
 Permanently erase **all** of a user's memory (account deletion), with their decision snapshots redacted too. With no agent/run it erases the entire user across all spaces; with them, one space. Issues a signed erasure receipt.
+
+{% hint style="warning" %}
+**Erasure fails closed.** With the graph projection enabled (`VAYL_GRAPH=1`), `delete` and `delete_all` purge the graph first. If the graph can't be reached, the call fails: **nothing is erased and no receipt is issued**. Retry once the graph is back. A signed erasure receipt is only ever issued for a complete erasure.
+{% endhint %}
 
 ## export\_memory
 
@@ -46,4 +50,4 @@ Retention (Art. 5(1)(e)): hard-delete records older than `older_than_days`. The 
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-file-signature" style="color:$primary;">:file-signature:</i> Accountability</h4></td><td>Verify the signed erasure receipts these tools issue.</td><td><a href="accountability.md">accountability.md</a></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>The <code>delete</code> and <code>admin</code> capabilities these tools require.</td><td><a href="../core-concepts/authentication-and-access.md">authentication-and-access.md</a></td></tr><tr><td><h4><i class="fa-globe" style="color:$primary;">:globe:</i> Deploying vayl-server</h4></td><td>Run the authenticated team server these tools live behind.</td><td><a href="../guides/deploying-vayl-server.md">deploying-vayl-server.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-file-signature" style="color:$primary;">:file-signature:</i> Accountability</h4></td><td>Verify the signed erasure receipts these tools issue.</td><td></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>The <code>delete</code> and <code>admin</code> capabilities these tools require.</td><td></td></tr><tr><td><h4><i class="fa-globe" style="color:$primary;">:globe:</i> Deploying vayl-server</h4></td><td>Run the authenticated team server these tools live behind.</td><td></td></tr></tbody></table>
