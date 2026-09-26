@@ -243,3 +243,29 @@ def test_custom_base_url_detects_local(monkeypatch):
     monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
     base, key, model, local = _openai_config()
     assert local and key == "ollama" and model == "qwen2.5:3b"
+
+
+def test_delete_issues_no_receipt_when_the_graph_purge_fails(monkeypatch):
+    """A signed erasure receipt must never attest to an erasure that left data behind."""
+    from vayl.memory.llm_memory import LLMMemory
+    from vayl.storage import store as store_mod
+    monkeypatch.setattr(store_mod, "_embed", lambda texts: [[0.0] for _ in texts])
+    st = mcp_server._store
+    m = LLMMemory()
+    m._apply({"action": "ADD", "subject": "state", "value": "Redux", "scope": "global", "confidence": 0.9},
+             "we use Redux")
+    st.save("erasure_u", m)
+
+    class _GraphDown:
+        def delete_edges(self, **where):
+            raise ConnectionError("neo4j unreachable")
+
+    receipts = lambda: st.db.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]  # noqa: E731
+    before = receipts()
+    monkeypatch.setattr(st, "graph", _GraphDown())
+    out = mcp_server.delete(subject="state", user_id="erasure_u")
+
+    assert "couldn't complete" in out and "receipt" not in out
+    assert receipts() == before                                    # nothing signed
+    monkeypatch.setattr(st, "graph", None)
+    assert [s.value for s in st.load("erasure_u").active()] == ["Redux"]   # nothing erased

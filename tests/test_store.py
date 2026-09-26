@@ -489,3 +489,38 @@ def test_id_allocation_is_per_space_not_process_global(tmp_path, monkeypatch):
     st.save("patient_a", a2)
     final = sorted(s.id for s in st.load("patient_a").statements)
     assert final == [1, 2, 3] and len(set(final)) == 3   # continued from MAX(2)+1, no collision
+
+
+# ── erasure fails closed when the graph projection can't be purged ──
+
+class _Graph:
+    """Records delete_edges calls; raises when `down` so we can simulate an unreachable Neo4j."""
+    def __init__(self, down=False):
+        self.down, self.calls = down, []
+
+    def delete_edges(self, **where):
+        self.calls.append(where)
+        if self.down:
+            raise ConnectionError("neo4j unreachable")
+
+
+def _store_with(tmp_path, graph):
+    st = Store(str(tmp_path / "vayl.db"), graph=graph)
+    m = LLMMemory(); m._apply(fact(value="Redux"), "we use Redux"); st.save("alice", m)
+    return st
+
+
+@pytest.mark.parametrize("erase", [lambda st: st.delete("alice", "state"), lambda st: st.delete_all("alice")])
+def test_erasure_fails_closed_and_erases_nothing_when_graph_purge_fails(tmp_path, erase):
+    st = _store_with(tmp_path, _Graph(down=True))
+    with pytest.raises(RuntimeError, match="nothing was erased"):
+        erase(st)
+    assert [s.value for s in st.load("alice").active()] == ["Redux"]   # store rows untouched
+
+
+def test_erasure_purges_the_graph_then_the_store(tmp_path):
+    g = _Graph()
+    st = _store_with(tmp_path, g)
+    assert st.delete("alice", "state") == 1
+    assert g.calls == [{"ns": st._ns("alice", "", ""), "subject": "state"}]
+    assert st.load("alice").statements == []
