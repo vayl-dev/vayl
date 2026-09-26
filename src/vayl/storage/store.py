@@ -242,7 +242,7 @@ class Store:
                 if getattr(s, "_emb", None) is None and not getattr(s, "_has_emb", False)]
         if need:
             try:
-                for s, v in zip(need, _embed([_embed_text(s) for s in need])):
+                for s, v in zip(need, _embed([_embed_text(s) for s in need]), strict=True):
                     s._emb = v
             except Exception as e:
                 log.warning("embedding unavailable (%s); recall degrades to lexical ranking", e)

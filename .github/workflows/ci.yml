@@ -30,6 +30,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Type check (mypy)
+        run: mypy
+
       - name: Import smoke test
         run: python -c "from vayl.api import mcp_server, server; from vayl.storage import store, graph_store; from vayl.memory import llm_memory, reconcile; from vayl.telemetry import metrics; from vayl.security import crypto, audit; print('runtime imports OK')"
 

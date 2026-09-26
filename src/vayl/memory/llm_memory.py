@@ -261,8 +261,8 @@ try:
         retries=False,                       # we do our own 429/5xx backoff below
         headers={"User-Agent": "vayl/0.1"})
 except Exception:                            # not installed → transparent urllib fallback
-    _urllib3 = None
-    _POOL = None
+    _urllib3 = None  # type: ignore[assignment]
+    _POOL = None  # type: ignore[assignment]
 
 
 def _retry_after(headers, i):
@@ -418,7 +418,7 @@ def _embed(texts):
 
 def _cos(a, b):
     import math
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))   # mixed embedding dims must not rank silently
     na = math.sqrt(sum(x * x for x in a)); nb = math.sqrt(sum(y * y for y in b))
     return dot / (na * nb) if na and nb else 0.0
 
@@ -438,7 +438,7 @@ def _tokens(text):
 # max of 1056.9ms, a 1.4ms spread across every question. Compute that scales with data does not
 # look like that; a fixed network cost does. Bounded so a long-lived process cannot grow it
 # without limit, and keyed by the exact text since a paraphrase is a different vector.
-_QEMB_CACHE = {}
+_QEMB_CACHE: dict[str, list[float]] = {}
 _QEMB_CACHE_MAX = env_int("VAYL_QUERY_CACHE", 512)
 
 
@@ -474,8 +474,9 @@ def embed_retrieve(question, statements, k=12):
             qv = _embed_query(question)
             for rank, s in enumerate(sorted(embedded, key=lambda s: _cos(qv, s._emb), reverse=True)):
                 sem_rank[id(s)] = rank
-        except Exception:
-            sem_rank = {}   # embedder down → lexical carries the query
+        except Exception as e:
+            log.warning("semantic ranking unavailable (%s); recall uses lexical ranking", e)
+            sem_rank = {}   # embedder down / mismatched embedding dims → lexical carries the query
 
     # lexical ranking
     scored = [(s, len(qtok & _tokens(f"{s.subject} {s.value} {getattr(s, 'raw', '')}"))) for s in statements]
@@ -507,7 +508,7 @@ def _rank_triples(question, triples, k=15):
     try:
         vecs = _embed([question] + [f"{h} {rel} {t}" for h, rel, t in triples])
         qv = vecs[0]
-        ranked = sorted(zip(triples, vecs[1:]), key=lambda x: _cos(qv, x[1]), reverse=True)
+        ranked = sorted(zip(triples, vecs[1:], strict=True), key=lambda x: _cos(qv, x[1]), reverse=True)
         return [t for t, _ in ranked[:k]]
     except Exception:
         return triples[:k]
@@ -672,7 +673,7 @@ class CriticalOverflow(RuntimeError):
 
 
 def _category(s):
-    return str(((getattr(s, "metadata", None) or {}).get("category") or "")).lower()
+    return str((getattr(s, "metadata", None) or {}).get("category") or "").lower()
 
 
 def is_critical(s, categories=None):

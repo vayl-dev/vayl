@@ -95,7 +95,7 @@ def test_a_malformed_schema_raises_rather_than_falling_back(tmp_path):
     always-injected when they are not — silence on exactly the guarantee the file provides."""
     p = tmp_path / "broken.json"
     p.write_text("{not json")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):                   # json.JSONDecodeError
         load(str(p))
 
 

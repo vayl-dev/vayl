@@ -165,7 +165,7 @@ class Neo4jGraph:
             self._ensure_vector_index(len(vecs[0]))
             with self.driver.session() as s:
                 s.run("UNWIND $rows AS row MATCH ()-[r:REL]->() WHERE elementId(r)=row.rid SET r.emb=row.emb",
-                      rows=[{"rid": x["rid"], "emb": v} for x, v in zip(chunk, vecs)])
+                      rows=[{"rid": x["rid"], "emb": v} for x, v in zip(chunk, vecs, strict=True)])
         with self.driver.session() as s:
             try: s.run("CALL db.awaitIndexes()")   # let the vector index catch up before querying
             except Exception: pass
