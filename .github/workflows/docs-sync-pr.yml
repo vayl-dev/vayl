@@ -4,6 +4,10 @@ name: docs sync PR
 # can't push there directly). This opens — or reuses — a pull request from `docs-sync`
 # into `main`, so synced docs land through CI + review instead of bypassing protection.
 #
+# Merge these PRs with a MERGE COMMIT, not squash or rebase: that keeps `docs-sync`'s commits
+# on `main`, so the next sync PR shows only the new edits. A squash leaves `docs-sync` a commit
+# behind and its old files resurface in every later sync PR.
+#
 # Requires the repo setting: Settings → Actions → General → Workflow permissions →
 # "Allow GitHub Actions to create and approve pull requests" (enabled during setup).
 
@@ -41,4 +45,4 @@ jobs:
             -f title="docs: sync from GitBook" \
             -f head="docs-sync" \
             -f base="main" \
-            -f body="Automated by \`docs-sync-pr.yml\`. GitBook Git Sync pushed new docs to \`docs-sync\`; merging brings them onto \`main\` through CI and review. Preview the rendered pages at https://vayl.gitbook.io/vayl-docs"
+            -f body="Automated by \`docs-sync-pr.yml\`. GitBook Git Sync pushed new docs to \`docs-sync\`; merging brings them onto \`main\` through CI and review. **Merge with \"Create a merge commit\"** (not squash or rebase) so \`docs-sync\` stays aligned with \`main\` and the next sync PR shows only new edits. Preview the rendered pages at https://vayl.gitbook.io/vayl-docs"
