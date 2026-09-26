@@ -259,7 +259,7 @@ def test_crypto_and_signer_work_with_a_vault_sourced_key(tmp_path, monkeypatch):
 # from test_security_hardening
 # ══════════════════════════════════════════════════════════════════
 
-def test_tool_error_does_not_leak_detail_to_client(monkeypatch, capsys):
+def test_tool_error_does_not_leak_detail_to_client(monkeypatch, caplog):
     def boom(*a, **k):
         raise RuntimeError("connect /Users/secret/vayl.db failed: value='alice-ssn-123'")
     monkeypatch.setattr(llm_memory, "llm_extract_classify", boom)
@@ -268,8 +268,8 @@ def test_tool_error_does_not_leak_detail_to_client(monkeypatch, capsys):
     assert "/Users/secret" not in out and "alice-ssn-123" not in out   # no path / data leak
     assert "ref " in out                                               # opaque reference instead
     ref = out.split("ref ", 1)[1].split(")")[0].strip()
-    # full detail still available server-side (stderr), keyed by the same ref
-    assert ref in capsys.readouterr().err
+    # full detail still available server-side (the log, on stderr in production), keyed by the same ref
+    assert any(r.levelname == "ERROR" and ref in r.getMessage() for r in caplog.records)
 
 
 def test_config_keyerror_hint_is_still_helpful():

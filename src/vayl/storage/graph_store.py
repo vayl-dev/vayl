@@ -11,9 +11,12 @@ Facts are written as directed entity->relation->entity edges. Scales via:
     relevant edges INSIDE the database (sub-second, no per-query embedding, no hub cap).
 The Python-side neighborhood+rank path remains as a fallback when embeddings aren't available.
 """
+import logging
 import re
 
 from vayl.memory.llm_memory import _embed
+
+log = logging.getLogger(__name__)
 
 
 class Neo4jGraph:
@@ -33,11 +36,11 @@ class Neo4jGraph:
                 s.run("CREATE CONSTRAINT entity_name IF NOT EXISTS "
                       "FOR (n:Entity) REQUIRE n.name IS UNIQUE")
             except Exception:
-                pass
+                log.warning("graph: could not create the entity-name uniqueness constraint", exc_info=True)
             try:
                 s.run("CREATE FULLTEXT INDEX entity_names IF NOT EXISTS FOR (n:Entity) ON EACH [n.name]")
             except Exception:
-                pass
+                log.warning("graph: could not create the entity-name full-text index", exc_info=True)
 
     def close(self): self.driver.close()
     def wipe(self):

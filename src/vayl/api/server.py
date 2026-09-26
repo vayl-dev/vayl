@@ -240,6 +240,7 @@ def main():
     # Over the network, auth is MANDATORY: the tool layer fails closed if a request somehow arrives
     # without a bound principal (defense in depth behind the middleware).
     mcp_server._AUTH_REQUIRED = True
+    mcp_server.configure_logging()
     host = os.environ.get("VAYL_HOST", "127.0.0.1")
     port = int(os.environ.get("VAYL_PORT", "8080"))
 

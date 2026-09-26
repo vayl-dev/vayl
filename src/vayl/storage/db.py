@@ -175,8 +175,9 @@ class Database:
         else:
             try:
                 self.execute(f"ALTER TABLE {table} ADD COLUMN {coldef}")
-            except sqlite3.OperationalError:
-                pass
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
 
     def insert_returning(self, sql, params=(), col="id"):
         """INSERT and return the generated key. Uses RETURNING (supported by SQLite ≥3.35 and Postgres),

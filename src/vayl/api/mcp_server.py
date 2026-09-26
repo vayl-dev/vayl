@@ -16,6 +16,7 @@ Client config (Claude Desktop / Cursor -> mcpServers):
 """
 import contextvars
 import json
+import logging
 import os
 import secrets
 import sys
@@ -35,6 +36,8 @@ from vayl.security import crypto
 from vayl.security.audit import Audit
 from vayl.storage.store import Store, bind_tenant, reset_tenant
 from vayl.telemetry.metrics import Metrics
+
+log = logging.getLogger(__name__)
 
 # ── tool safety annotations ───────────────────────────────────────────────────
 # Tell MCP clients which tools are safe to auto-run vs. which need confirmation.
@@ -70,7 +73,11 @@ def _maybe_graph():
             pw=os.environ.get("NEO4J_PASSWORD", "testpass123"),
         )
     except Exception:
-        return None   # slot-only fallback — the graph is a bonus, never a hard dependency
+        # slot-only fallback — the graph is a bonus, never a hard dependency. But the operator asked
+        # for it, so say why they aren't getting it.
+        log.warning("VAYL_GRAPH is set but the Neo4j graph is unavailable; running slot-only",
+                    exc_info=True)
+        return None
 
 
 def _transport_security():
@@ -157,7 +164,8 @@ def _deny(tool, reason, message):
         _audit.record("access_denied", getattr(_current_principal(), "id", "") or "", "", "",
                       f"{tool}: {reason}")
     except Exception:
-        pass
+        # the denial itself stands; losing its audit record is an accountability gap worth surfacing
+        log.error("failed to record access denial for %s", tool, exc_info=True)
     return message
 
 
@@ -217,7 +225,7 @@ def _guard(tool, fn, cap=None, space=None):
         # The client gets an opaque reference; the full detail goes to the server log + metrics.
         err = e
         ref = secrets.token_hex(4)
-        print(f"[vayl {ref}] {tool}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        log.error("[vayl %s] %s: %s: %s", ref, tool, type(e).__name__, e, exc_info=True)
         return (f"Vayl couldn't complete that (ref {ref}). Retry if it was a transient blip; "
                 "otherwise the full detail is in the server logs under that reference.")
     finally:
@@ -226,7 +234,7 @@ def _guard(tool, fn, cap=None, space=None):
             if err is not None:
                 _metrics.record_error(tool, type(err).__name__, (f"[{ref}] " if ref else "") + str(err))
         except Exception:
-            pass   # metrics must never break a tool
+            log.debug("metrics recording failed for %s", tool, exc_info=True)  # never break a tool
 
 
 # All memory tools accept optional agent_id / run_id: each (user_id, agent_id, run_id)
@@ -956,7 +964,16 @@ def health() -> str:
     return _guard("health", go, cap=C.VERIFY)
 
 
+def configure_logging():
+    """Called by the entry points only — library code just gets loggers. Always stderr: on stdio the
+    MCP protocol owns stdout. VAYL_LOG_LEVEL sets verbosity (default WARNING); an unknown level fails
+    at startup rather than being silently ignored."""
+    logging.basicConfig(stream=sys.stderr, level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(),
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
 def main():
+    configure_logging()
     # show_banner=False: on stdio the banner would print to the console; keep the transport clean.
     mcp.run(show_banner=False)
 
