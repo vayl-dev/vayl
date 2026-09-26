@@ -49,7 +49,7 @@ Open `.env`. **The LLM block is the only required part.** Pick one:
 LLM_PROVIDER=openai
 OPENAI_BASE_URL=https://your-endpoint/v1     # OpenAI, Azure OpenAI, EU-hosted, vLLM…
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5-mini                       # 0% silently-wrong on messy data; gpt-5-nano is cheaper but weaker on corrections
+OPENAI_MODEL=gpt-5-mini                       # the default; gpt-5-nano is cheaper but weaker on corrections
 EMBED_BASE_URL=https://your-endpoint/v1
 EMBED_API_KEY=sk-...
 EMBED_MODEL=text-embedding-3-small
@@ -84,10 +84,12 @@ docker compose logs -f vayl        # watch for "Uvicorn running" / "Application 
 
 ## 4. Bootstrap the first admin (one-off)
 
-The server requires authenticated principals. Mint the first admin and **copy the key — it's shown once**:
+The server requires authenticated principals. Mint the first admin and **copy the key — it's shown once**.
+This one-off command runs in its own container, not through the server, so it turns off the image's
+`VAYL_AUTH_REQUIRED=1` for that container only:
 
 ```bash
-docker compose run --rm vayl python -c "import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
 ```
 
 Use that admin key to create the day-to-day principals your agents/users will use (roles:

@@ -89,7 +89,7 @@ Add to your MCP client (Claude Desktop / Cursor) config:
 }
 ```
 
-Restart the client — your agent now has the [tools below](#what-your-agent-gets). `VAYL_DB` is where memory persists. `gpt-5-mini` is the default and scores **0% silently-wrong** on the messy real-world suite; any OpenAI-compatible endpoint works (point `OPENAI_BASE_URL` at a self-hosted or EU-region deployment if data residency matters).
+Restart the client — your agent now has the [tools below](#what-your-agent-gets). `VAYL_DB` is where memory persists. `gpt-5-mini` is the default; any OpenAI-compatible endpoint works (point `OPENAI_BASE_URL` at a self-hosted or EU-region deployment if data residency matters).
 
 > **Models & reliable reconciliation.** For **declared slots** (a [preset](#declared-slots--presets) via `VAYL_SLOT_SCHEMA=preset:coding`) the same-slot invariant retires the old value *deterministically* — even a small local model reconciles a switch correctly. For **free-form** memory (no preset), use a capable model (the default `gpt-5-mini`, or a ~7B+ local model) so the extractor names slots consistently. A 3B local model works, but is less reliable without a preset.
 
@@ -251,12 +251,11 @@ Every number is reproducible from `benchmarks/` — run the scripts yourself. Th
 
 | Metric | Vayl | What it means |
 |--------|------|---------------|
-| **Retraction** ("we dropped X"), gpt-4o, 10 cases | **10 / 10** removed | removal is first-class, not a re-ranked fact |
-| **Silently-wrong** (confidently returns a false current value) — 255 adversarial trials, Haiku | **0.4%** | flags/degrades instead of guessing |
-| **Messy real input** — 30 cases, 12 domains × 14 noise types, gpt-4o | **0%** silently-wrong | typos, slang, emoji, multi-fact msgs |
-| **Cost per fact** | **~2 LLM calls, no graph DB** | bounded top-k retrieval, no whole-graph scan |
+| **Stale value surfaced as current** — 10 change/withdrawal scenarios, `gpt-4o-mini` ([results](benchmarks/results/compare_systems.md)) | **0 / 10** (10 / 10 correct) | Mem0 1 / 10, Graphiti 0 / 10 but 6 / 10 missed |
+| **Retraction** ("we dropped X") — 12 retractions + 2 over-deletion controls, `gpt-4o-mini` ([results](benchmarks/results/retraction_battery.md)) | **12 / 12** removed, controls kept | removal is first-class, not a re-ranked fact |
+| **Model calls** | **1 to write, 1 to answer** | plus one embedding call each; no graph DB needed |
 
-The **silently-wrong rate** is the trust metric. `gpt-5-mini` (default) and `gpt-4o-mini` both reach **0%** on the messy suite — because a **same-slot invariant** allows at most one active value per `(subject, scope)`, a cheaper model can't leave two contradictory values live. Run it on the model you deploy:
+The **silently-wrong rate** (a false value returned as current) is the trust metric. A **same-slot invariant** keeps at most one active value per `(subject, scope)` for single-valued facts, so a weaker model can miss a change but can't leave two contradictory values live. Results depend on the model; run the suite on the one you deploy:
 
 ```bash
 python benchmarks/evaluations/eval_reconcile.py     # full pipeline vs a labeled set → silently-wrong rate
@@ -349,7 +348,7 @@ For deep relational questions ("who owns the company Bob works for?"):
 pip install ".[graph]"    # + run Neo4j, then set "VAYL_GRAPH": "1" and "NEO4J_PASSWORD" in the server env
 ```
 
-Facts mirror into Neo4j as an entity graph; each edge is embedded on write and ranked by a native Neo4j vector index, so `recall_related` stays **50–230 ms even on high-degree hubs** — no whole-graph scan. If the graph isn't enabled (or Neo4j is down), `recall_related` falls back to slot recall. Edges are namespaced per `(user_id, agent_id, run_id)`, so `delete` / `delete_all` **purge the graph too**.
+Facts mirror into Neo4j as an entity graph; each edge is embedded on write and ranked by a native Neo4j vector index, so `recall_related` ranks edges without scanning the whole graph. If the graph isn't enabled (or Neo4j is down), `recall_related` falls back to slot recall. Edges are namespaced per `(user_id, agent_id, run_id)`, so `delete` / `delete_all` **purge the graph too**.
 
 ### Scaling & history
 
@@ -398,7 +397,7 @@ Without scopes a principal is **unrestricted** — correct for single-tenant, wr
 ```bash
 docker compose up -d --build
 # bootstrap the first admin (one-off) — copy the printed key:
-docker compose run --rm vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
 curl localhost:8080/healthz        # liveness   ·   curl localhost:8080/metrics  → Prometheus
 ```
 

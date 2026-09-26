@@ -2,7 +2,7 @@
 #
 #   docker compose up -d --build
 #   # bootstrap the first admin (one-off), then hand out the printed key:
-#   docker compose run --rm vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+#   docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
 #   # health:  curl localhost:8080/healthz   ·   metrics: curl localhost:8080/metrics
 #
 # Put TLS/ingress in front; do not expose 8080 to the internet directly.

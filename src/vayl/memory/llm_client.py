@@ -11,6 +11,7 @@ import os
 import random
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from vayl.config import env_float, env_int
@@ -135,13 +136,27 @@ def _openai_gen_params(model, default_max):
             "temperature": env_float("OPENAI_TEMP", 0.0)}
 
 
+def _embed_config():
+    """Resolve (base_url, key, model) for embeddings. EMBED_BASE_URL wins, then OPENAI_BASE_URL. With
+    neither, follow the chat model: OpenAI (text-embedding-3-small) when OPENAI_API_KEY is set, else a
+    local Ollama embedder (nomic-embed-text). Before 0.6 a key-only setup still embedded against
+    localhost:11434 — and sent the OpenAI key there — so recall stalled on retries without Ollama."""
+    key = os.environ.get("EMBED_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    base = os.environ.get("EMBED_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
+    if not base:
+        base = "https://api.openai.com/v1" if os.environ.get("OPENAI_API_KEY") else "http://localhost:11434/v1"
+    base = base.rstrip("/")
+    # nomic-embed-text stays the default everywhere it was (Ollama, vLLM, …); only OpenAI itself,
+    # which has no such model, gets its own.
+    model = os.environ.get("EMBED_MODEL") or (
+        "text-embedding-3-small" if urllib.parse.urlsplit(base).hostname == "api.openai.com"
+        else "nomic-embed-text")
+    return base, key or "ollama", model
+
+
 def _embed(texts):
-    """Embed a batch of texts. Defaults to a local Ollama embedder (free); overridable via env.
-    Any OpenAI-compatible /embeddings endpoint works (OpenAI text-embedding-3-small, etc.)."""
-    base = (os.environ.get("EMBED_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-            or "http://localhost:11434/v1").rstrip("/")
-    key = os.environ.get("EMBED_API_KEY") or os.environ.get("OPENAI_API_KEY", "ollama")
-    model = os.environ.get("EMBED_MODEL", "nomic-embed-text")
+    """Embed a batch of texts through any OpenAI-compatible /embeddings endpoint (see _embed_config)."""
+    base, key, model = _embed_config()
     payload = json.dumps({"model": model, "input": list(texts)}).encode()
     req = urllib.request.Request(base + "/embeddings", data=payload,
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json", "User-Agent": "vayl/0.1"})

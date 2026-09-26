@@ -49,3 +49,64 @@ def test_vault_mode_requires_a_token(monkeypatch, tmp_path):
     monkeypatch.delenv("VAULT_TOKEN", raising=False)
     with pytest.raises(ValueError, match="requires VAULT_TOKEN"):
         kms.data_key(str(tmp_path / "k"))
+
+
+def test_env_bool_accepts_the_usual_spellings_and_rejects_typos(monkeypatch):
+    from vayl.config import env_bool
+    for raw, want in (("on", True), ("TRUE", True), ("1", True), ("yes", True),
+                      ("off", False), ("False", False), ("0", False), ("no", False)):
+        monkeypatch.setenv("X_FLAG", raw)
+        assert env_bool("X_FLAG", not want) is want, raw
+    monkeypatch.setenv("X_FLAG", "")
+    assert env_bool("X_FLAG", True) is True                   # empty -> default
+    monkeypatch.setenv("X_FLAG", "of")
+    with pytest.raises(ValueError, match="X_FLAG must be on or off, got 'of'"):
+        env_bool("X_FLAG", True)
+
+
+def test_a_mistyped_security_switch_fails_instead_of_defaulting(monkeypatch, tmp_path):
+    """VAYL_ENCRYPT=of used to mean 'on' and VAYL_AUTH_REQUIRED=on used to mean 'off'."""
+    from vayl.security import crypto
+    monkeypatch.setenv("VAYL_ENCRYPT", "of")
+    with pytest.raises(ValueError, match="VAYL_ENCRYPT must be on or off"):
+        crypto.resolve(str(tmp_path / "v.db"))
+
+
+def test_embedder_follows_the_openai_key_and_leaves_explicit_endpoints_alone(monkeypatch):
+    from vayl.memory.llm_client import _embed_config
+    for k in ("OPENAI_API_KEY", "OPENAI_BASE_URL", "EMBED_BASE_URL", "EMBED_MODEL", "EMBED_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    assert _embed_config() == ("http://localhost:11434/v1", "ollama", "nomic-embed-text")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")            # key only: embed where the LLM is
+    assert _embed_config() == ("https://api.openai.com/v1", "sk-test", "text-embedding-3-small")
+    monkeypatch.setenv("EMBED_BASE_URL", "http://localhost:11434/v1")   # explicit: unchanged
+    assert _embed_config()[::2] == ("http://localhost:11434/v1", "nomic-embed-text")
+    monkeypatch.delenv("EMBED_BASE_URL")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://vllm.internal/v1")    # other endpoint: unchanged
+    assert _embed_config()[::2] == ("https://vllm.internal/v1", "nomic-embed-text")
+
+
+def test_cli_help_and_version_answer_without_starting_or_touching_a_db(tmp_path, monkeypatch, capsys):
+    """`vayl-mcp --help` used to start the stdio server and create vayl.db in the working directory."""
+    import vayl
+    from vayl import cli
+    monkeypatch.chdir(tmp_path)
+    for entry, prog in ((cli.mcp, "vayl-mcp"), (cli.server, "vayl-server")):
+        for flag in ("--help", "--version"):
+            with pytest.raises(SystemExit) as done:
+                entry([flag])
+            assert done.value.code == 0
+        out = capsys.readouterr().out
+        assert f"usage: {prog}" in out and f"{prog} {vayl.__version__}" in out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_embedder_model_default_matches_the_openai_host_exactly(monkeypatch):
+    from vayl.memory.llm_client import _embed_config
+    for k in ("OPENAI_API_KEY", "EMBED_BASE_URL", "EMBED_MODEL", "EMBED_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com.proxy.example/v1")
+    assert _embed_config()[2] == "nomic-embed-text"          # look-alike host is not OpenAI
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    assert _embed_config()[2] == "text-embedding-3-small"

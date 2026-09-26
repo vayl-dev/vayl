@@ -17,7 +17,27 @@ All notable changes to Vayl are documented here. This project adheres to
   (for example, an integration key created as `create_principal("fhir", role="agent")`) or a key with
   `approve`. Other callers are denied, and the denial is audited.
 
+### Changed
+- **Embeddings follow your OpenAI key.** With `OPENAI_API_KEY` set and neither `EMBED_BASE_URL` nor
+  `OPENAI_BASE_URL`, chat went to OpenAI but embeddings still went to a local Ollama at
+  `localhost:11434` (`nomic-embed-text`), and the OpenAI key was sent there. Without Ollama running,
+  every embed call stalled on retries and recall fell back to keyword ranking. That setup, which is
+  the README's MCP config and the docker-compose default, now embeds with OpenAI
+  `text-embedding-3-small`. Setups that set `EMBED_BASE_URL` or `OPENAI_BASE_URL` are unchanged.
+- **Every on/off setting is parsed strictly.** `VAYL_AUTH_REQUIRED`, `VAYL_GRAPH`, `VAYL_ENCRYPT`,
+  `VAYL_SIGN`, `VAYL_DEDUP_PREFILTER`, `VAYL_SLOT_RESOLVE` and `OPENAI_JSON` accept
+  `on/off/true/false/yes/no/1/0` in any case, and anything else fails at startup naming the variable.
+  Before, `VAYL_AUTH_REQUIRED=on` and `VAYL_GRAPH=on` silently meant off, and a typo in
+  `VAYL_ENCRYPT` or `VAYL_SIGN` silently meant on.
+
+### Added
+- `vayl-mcp` and `vayl-server` answer `--help` and `--version`. `vayl-mcp --help` used to start the
+  stdio server and create `vayl.db` in the working directory.
+
 ### Fixed
+- The Docker admin bootstrap command in README.md, DEPLOY.md and `docker-compose.yml` always returned
+  "authentication required", because the image sets `VAYL_AUTH_REQUIRED=1`. It now passes
+  `-e VAYL_AUTH_REQUIRED=0` for that one-off container.
 - **`vayl-server` returned empty responses to every MCP call.** Requests got `200` with an empty body,
   and the server logged `ASGI callable returned without completing response`. `LimitsMiddleware` reads
   the request body to enforce the size cap, then replays it. After the replay it answered every
@@ -25,6 +45,11 @@ All notable changes to Vayl are documented here. This project adheres to
   gone and cancelled itself. It now passes later calls to the real `receive()`. A new test runs a real
   MCP `tools/call` through the full HTTP stack. stdio (`vayl-mcp`) was not affected.
 ### Upgrading
+- If you set only `OPENAI_API_KEY` and ran a local Ollama for embeddings, set
+  `EMBED_BASE_URL=http://localhost:11434/v1` to keep using it. Otherwise, new facts get OpenAI vectors,
+  and semantic ranking falls back to keyword ranking in any space that mixes the two sizes.
+- An on/off setting with a value other than the accepted spellings now stops startup with a message
+  naming it.
 - Agent keys that called `confirm_change` or `reject_change` are now denied. Approve changes with a
   `member` or `admin` key.
 - An integration that writes as a trusted source must use a key whose name matches the source.
@@ -201,6 +226,9 @@ old, removals retract, ambiguous input is flagged, and history stays queryable â
 (`vayl-mcp`) or an authenticated team server (`vayl-server`). SQLite by default, optional Postgres;
 encryption at rest, an Ed25519-signed tamper-evident audit chain, RBAC, and GDPR tools.
 
+[0.5.1]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.1
+[0.5.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.5.0
+[0.4.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.4.0
 [0.3.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.3.0
 [0.2.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.2.0
 [0.1.0]: https://github.com/vayl-dev/vayl/releases/tag/v0.1.0

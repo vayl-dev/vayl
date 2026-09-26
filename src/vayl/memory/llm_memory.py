@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 
-from vayl.config import env_float, env_int
+from vayl.config import env_bool, env_float, env_int
 from vayl.memory import llm_client, retrieval
 from vayl.memory.reconcile import (
     HYPOTHETICAL_MARKERS,
@@ -295,7 +295,7 @@ def _call_openai(user):
                      {"role": "user", "content": user}],
         **llm_client._openai_gen_params(model, 400),
     }
-    if os.environ.get("OPENAI_JSON", "on") != "off":     # some local models don't support json mode
+    if env_bool("OPENAI_JSON", True):     # some local models don't support json mode
         body["response_format"] = {"type": "json_object"}
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {key}", "content-type": "application/json",
@@ -349,7 +349,7 @@ _EXTRACT_JSON_RETRIES = max(0, env_int("VAYL_EXTRACT_RETRIES", 2))   # <0 would 
 # check in `_apply`), so the call can be skipped. This ONLY fires on an exact match after light
 # normalization — never fuzzy similarity — so it can't skip a subtly different value ("5 mg" vs
 # "7 mg") that ought to supersede. On by default; VAYL_DEDUP_PREFILTER=off restores always-extract.
-_DEDUP_PREFILTER = os.environ.get("VAYL_DEDUP_PREFILTER", "1").lower() not in ("0", "off", "false", "no")
+_DEDUP_PREFILTER = env_bool("VAYL_DEDUP_PREFILTER", True)
 _WS_RE = re.compile(r"\s+")
 
 
@@ -411,7 +411,7 @@ _CRITICAL_BUDGET = env_int("VAYL_CRITICAL_BUDGET", 200)
 # value each time. Measured: every fragmentation case shared an identical value across near-
 # identical subjects. Folding those is dedup-only and cannot destroy data: it turns an ADD into a
 # DEDUP, never a supersede. OFF by default; it changes stored subjects, which some callers key on.
-_SLOT_RESOLVE = os.environ.get("VAYL_SLOT_RESOLVE", "").lower() in ("1", "true", "yes")
+_SLOT_RESOLVE = env_bool("VAYL_SLOT_RESOLVE", False)
 
 # Sources whose changes are already authorized and therefore bypass the confirmation gate. The gate
 # protects against a change inferred by an LLM reading conversational text ("stop the warfarin" in a
