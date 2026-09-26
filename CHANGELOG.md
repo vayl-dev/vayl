@@ -3,7 +3,10 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] — 2026-09-26
+
+Faster tool calls on large memories, versioned schema migrations, and request-level logging for the
+HTTP server. No breaking API changes; see **Upgrading from 0.4** below.
 
 ### Performance
 - **Faster tool calls on large memories.** Every tool call reloads the memory space. Before this change
@@ -31,6 +34,22 @@ All notable changes to Vayl are documented here. This project adheres to
   at startup.
 - `VAYL_VECTOR_CACHE` (default 8192): how many decoded embeddings to keep, about 6 KB each at 1536
   dimensions. A space with more embedded facts than this re-decrypts the overflow on every recall.
+
+### Changed
+- Text-format log lines now include the request ID in brackets after the logger name
+  (`… INFO vayl.api.server [3f9a…]: …`), shown as `[-]` on stdio. Update any log parser that matches
+  the old format, or switch to `VAYL_LOG_FORMAT=json`.
+
+### Security
+- CI now fails on a dependency with a known vulnerability (`pip-audit`) instead of warning, and GitHub
+  secret scanning with push protection is on for the repository.
+
+### Upgrading from 0.4
+- No action needed. On first start, 0.5 creates `schema_migrations` and records the existing schema as
+  v1. It changes no data.
+- Rolling back to 0.4.0 is safe: 0.4.0 ignores the new table and reads the database as before.
+- If you run several server processes on one Postgres, you can run `vayl-migrate up` once before
+  rolling out. If you don't, the first process to start applies the migrations under an advisory lock.
 
 ## [0.4.0] — 2026-09-26
 
