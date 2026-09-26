@@ -2,6 +2,8 @@
 with a bounded cache of query embeddings. Degrades to lexical ranking when the embedder is unavailable.
 """
 import logging
+import math
+import operator
 import re
 
 from vayl.config import env_int
@@ -10,10 +12,15 @@ from vayl.memory import llm_client
 log = logging.getLogger(__name__)
 
 
+# C-speed dot product on Python 3.12+; recall ranks every active fact, so this loop is the hot path.
+_sumprod = getattr(math, "sumprod", None)
+
+
 def _cos(a, b):
-    import math
-    dot = sum(x * y for x, y in zip(a, b, strict=True))   # mixed embedding dims must not rank silently
-    na = math.sqrt(sum(x * x for x in a)); nb = math.sqrt(sum(y * y for y in b))
+    if len(a) != len(b):   # mixed embedding dims (e.g. after an EMBED_MODEL change) must not rank silently
+        raise ValueError(f"embedding dimensions differ: {len(a)} vs {len(b)}")
+    dot = _sumprod(a, b) if _sumprod else sum(map(operator.mul, a, b))
+    na, nb = math.hypot(*a), math.hypot(*b)
     return dot / (na * nb) if na and nb else 0.0
 
 

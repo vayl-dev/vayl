@@ -157,6 +157,10 @@ class Store:
         a.frombytes(base64.b64decode(raw))
         return list(a)
 
+    def _forget_plaintext(self):
+        if self.crypter:
+            self.crypter.forget()
+
     def _bi(self, subject):
         return self.crypter.blind(subject) if self.crypter else subject   # blind index for equality
 
@@ -348,6 +352,7 @@ class Store:
             q += " AND run_id=?"; p.append(run_id)
         cur = self.db.execute(q, p)
         self.db.commit()
+        self._forget_plaintext()
         return cur.rowcount
 
     def cold_tail(self, user_id, agent_id="", run_id="", limit=20):
@@ -367,6 +372,7 @@ class Store:
             "DELETE FROM statements WHERE tenant_id=? AND user_id=? AND agent_id=? AND run_id=? AND subject_hmac=?",
             (self.tenant, user_id, agent_id, run_id, self._bi(subject)))
         self.db.commit()
+        self._forget_plaintext()
         return cur.rowcount
 
     def delete_all(self, user_id, agent_id=None, run_id=None):
@@ -385,6 +391,7 @@ class Store:
             self._purge_graph(ns=self._ns(user_id, agent_id or "", run_id or ""))
         cur = self.db.execute(q, p)
         self.db.commit()
+        self._forget_plaintext()
         return cur.rowcount
 
     def _purge_graph(self, **where):

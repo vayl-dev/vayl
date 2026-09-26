@@ -16,6 +16,7 @@ equality queries on encrypted columns won't work, so `blind()` gives a determini
 the `subject` column (reveals which rows share a subject, not the subject itself).
 """
 import base64
+import functools
 import hashlib
 import hmac
 import json
@@ -70,17 +71,35 @@ def _derive(pw, salt_path, dklen=32):
     return _run_kdf(spec, pw, salt, dklen)
 
 
+_DEC_CACHE = 32768          # entries; short fields are ~0.5 KB each with the key -> ~16 MB ceiling
+_DEC_CACHE_MAX_LEN = 2048   # ciphertext chars; embeddings (~11 KB) bypass the cache
+
+
 class Crypter:
     def __init__(self, key32):
         from cryptography.fernet import Fernet
         self._f = Fernet(base64.urlsafe_b64encode(key32))
         self._hk = key32
+        # Every tool call reloads the space and decrypts each row again, which dominated latency.
+        # A Fernet token is authenticated and carries a random IV, so ciphertext -> plaintext is
+        # exact to cache. Short fields only: a cached embedding would cost ~14 KB an entry.
+        # Hard deletes call forget() so erased plaintext does not outlive its row in process memory.
+        self._dec_short = functools.lru_cache(maxsize=_DEC_CACHE)(self._decrypt)
 
     def enc(self, s):
         return None if s is None else self._f.encrypt(s.encode()).decode()
 
+    def _decrypt(self, s):
+        return self._f.decrypt(s.encode()).decode()
+
     def dec(self, s):
-        return None if s is None else self._f.decrypt(s.encode()).decode()
+        if s is None:
+            return None
+        return self._dec_short(s) if len(s) <= _DEC_CACHE_MAX_LEN else self._decrypt(s)
+
+    def forget(self):
+        """Drop cached plaintext — called after every hard delete (erasure, retention expiry)."""
+        self._dec_short.cache_clear()
 
     def blind(self, s):
         """Deterministic keyed hash for equality lookups on an encrypted column. Reveals only which

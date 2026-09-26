@@ -3,6 +3,16 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Performance
+- **Faster tool calls on large memories.** Every tool call reloads the memory space and decrypted every
+  row again. Short encrypted fields now go through a bounded ciphertext→plaintext cache (at most 32,768
+  entries). Every hard delete (`forget`, account erasure, retention expiry) clears the cache, so erased
+  plaintext doesn't stay in process memory. Recall ranking now computes cosine similarity with
+  `math.sumprod` on Python 3.12+. At 1,000 facts, with encryption on and model calls stubbed out,
+  median `remember` drops from 122 ms to 25 ms and `recall` from 444 ms to 205 ms.
+
 ## [0.4.0] — 2026-09-26
 
 Framework adapters, three new presets, per-tenant isolation, and a hardening pass. Several changes are
