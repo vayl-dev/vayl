@@ -3,6 +3,38 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Hardening release. Several changes are **breaking** for misconfigured or partially-configured setups;
+each now fails at startup with a message naming the setting.
+
+### Removed
+- **`vayl.clinical`** (FHIR ingestion and discharge medication reconciliation). It was not wired into
+  any MCP tool or entry point. The **`preset:clinical`** slot schema is unchanged, and its engine
+  behavior (list slots, critical tagging, confirmation gates, trusted sources) keeps its tests.
+
+### Security
+- **Erasure fails closed.** If the Neo4j graph purge fails, `delete` / `delete_all` erase nothing and
+  issue **no** signed receipt, instead of a receipt for a partial erasure.
+- **`NEO4J_PASSWORD` is required** when `VAYL_GRAPH=1` (it fell back to a hard-coded default). The
+  shipped `docker-compose.yml` takes it from `.env` and binds Neo4j to localhost.
+- **Exception text no longer leaks.** `stats()` shows error text to admins only (any role could read
+  errors carrying another tenant's memory), and `ERROR` logs carry a ref, type and location, not the
+  text; full detail is at `DEBUG`.
+- `cryptography>=50` (PYSEC-2026-3552); `pyjwt>=2.13.0` for the `sso` extra (CVE-2022-29217).
+
+### Changed
+- **Invalid configuration fails at startup:** unknown `LLM_PROVIDER` (it silently routed extraction to
+  Anthropic), unknown `VAYL_KMS` (it silently fell back to a key file), `VAYL_KMS=vault` without
+  `VAULT_TOKEN`, and malformed numeric settings.
+- Logging via the standard library to stderr; set the level with `VAYL_LOG_LEVEL` (default `WARNING`).
+- `health()` makes one attempt per dependency instead of backing off for minutes when one is down.
+
+### Fixed
+- Mismatched embedding dimensions (e.g. after changing `EMBED_MODEL`) no longer produce a meaningless
+  ranking; recall falls back to lexical ranking and logs it.
+- `VAYL_EXTRACT_RETRIES` below 0 no longer skips extraction and crashes.
+
 ## [0.3.0] — 2026-07-29
 
 Framework migration: Vayl's MCP server now runs on the maintained standalone **FastMCP** framework

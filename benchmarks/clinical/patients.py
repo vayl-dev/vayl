@@ -406,14 +406,6 @@ DOROTHY = {
     ],
     "expectations": {
         "critical_present": ["penicillin"],
-        # the med-rec reconstruction (checked separately in the medrec tests / demo)
-        "medrec": {
-            "CONTINUED": ["furosemide"],                 # unchanged from home
-            "CHANGED":   ["atorvastatin"],               # 20 → 80
-            "STOPPED":   ["lisinopril"],                 # held for AKI
-            "NEW":       ["aspirin", "clopidogrel"],     # started inpatient
-            "HELD":      ["metoprolol tartrate"],                 # switch awaiting pharmacy
-        },
     },
 }
 
