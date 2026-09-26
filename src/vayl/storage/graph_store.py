@@ -20,7 +20,9 @@ log = logging.getLogger(__name__)
 
 
 class Neo4jGraph:
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", pw="testpass123"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", pw=None):
+        if not pw:
+            raise ValueError("a Neo4j password is required (set NEO4J_PASSWORD)")
         # neo4j is an optional [graph] dependency — import it only when a graph is actually
         # instantiated, so `import graph_store` works in a slot-only install (and in CI).
         from neo4j import GraphDatabase
