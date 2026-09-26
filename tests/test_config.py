@@ -70,3 +70,18 @@ def test_a_mistyped_security_switch_fails_instead_of_defaulting(monkeypatch, tmp
     monkeypatch.setenv("VAYL_ENCRYPT", "of")
     with pytest.raises(ValueError, match="VAYL_ENCRYPT must be on or off"):
         crypto.resolve(str(tmp_path / "v.db"))
+
+
+def test_embedder_follows_the_openai_key_and_leaves_explicit_endpoints_alone(monkeypatch):
+    from vayl.memory.llm_client import _embed_config
+    for k in ("OPENAI_API_KEY", "OPENAI_BASE_URL", "EMBED_BASE_URL", "EMBED_MODEL", "EMBED_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    assert _embed_config() == ("http://localhost:11434/v1", "ollama", "nomic-embed-text")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")            # key only: embed where the LLM is
+    assert _embed_config() == ("https://api.openai.com/v1", "sk-test", "text-embedding-3-small")
+    monkeypatch.setenv("EMBED_BASE_URL", "http://localhost:11434/v1")   # explicit: unchanged
+    assert _embed_config()[::2] == ("http://localhost:11434/v1", "nomic-embed-text")
+    monkeypatch.delenv("EMBED_BASE_URL")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://vllm.internal/v1")    # other endpoint: unchanged
+    assert _embed_config()[::2] == ("https://vllm.internal/v1", "nomic-embed-text")
