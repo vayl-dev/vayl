@@ -32,6 +32,7 @@ from vayl.auth.auth import Capability as C
 from vayl.licensing import license as license_mod
 from vayl.licensing import receipts as receipts_mod
 from vayl.licensing.receipts import Receipts
+from vayl.memory import llm_memory
 from vayl.memory.decisions import Decisions
 from vayl.security import crypto
 from vayl.security.audit import Audit
@@ -263,6 +264,11 @@ def remember(text: str, user_id: str = "default", agent_id: str = "", run_id: st
     reconciliation in a shared space (see set_reconcile_policy). Examples: 'We switched from Zustand
     to Redux Toolkit', 'Alice is the new team lead'."""
     def go():
+        if not _may_write_as(source):
+            return _deny("remember", f"not authorized to write as trusted source '{source}'",
+                         f"Access denied: '{source}' is a trusted source (VAYL_TRUSTED_SOURCES), so its "
+                         f"changes skip the confirmation gate. Only a key named '{source}', or one with "
+                         f"the 'approve' capability, may write as it.")
         with _store.db.space_lock(_space_key(user_id, agent_id, run_id)):
             m = _store.load(user_id, agent_id, run_id)
             before = {s.id for s in m.statements}
@@ -707,15 +713,36 @@ def pending_changes(user_id: str = "default", agent_id: str = "", run_id: str = 
     return _guard("pending_changes", go, cap=C.READ, space=user_id)
 
 
+def _may_write_as(source):
+    """A trusted source (VAYL_TRUSTED_SOURCES) bypasses the confirmation gate, and `source` is a string
+    the caller chooses — so claiming one is itself an approval. Allow it only for the key that IS that
+    source (an integration key named e.g. 'fhir') or a caller who could approve the change anyway."""
+    if not source or source.strip().lower() not in llm_memory._TRUSTED_SOURCES:
+        return True
+    p = _current_principal()
+    return p is not None and (p.can(C.APPROVE) or p.name.strip().lower() == source.strip().lower())
+
+
+def _approver(note=""):
+    """Who decided a gated change: the authenticated caller, never caller-supplied text. The gate
+    exists so a person signs off; a free-text name would let anyone record anyone. `decided_by` is
+    kept, but only as a note beside the real identity."""
+    p = _current_principal()
+    who = f"{p.name} [{p.id}]" if p else "unknown"
+    return f"{who} (note: {note})" if note else who
+
+
 @mcp.tool(annotations=_write("Approve a pending change", open_world=False))
 def confirm_change(memory_id: int, user_id: str = "default", agent_id: str = "", run_id: str = "",
                    decided_by: str = "") -> str:
-    """Approve a proposed change to a confirm-required slot, applying it. `decided_by` records WHO
-    approved it — the point of the gate is accountability, so an anonymous approval is worth little."""
+    """Approve a proposed change to a confirm-required slot, applying it. Needs the `approve`
+    capability (admin and member roles; agents lack it, so an agent can't approve its own proposal).
+    The approver recorded is the authenticated caller; `decided_by` is an optional note."""
     def go():
+        who = _approver(decided_by)
         with _store.db.space_lock(_space_key(user_id, agent_id, run_id)):
             m = _store.load(user_id, agent_id, run_id)
-            res = m.confirm(memory_id, source=decided_by or getattr(_current_principal(), "name", ""))
+            res = m.confirm(memory_id, source=who)
             if res is None:
                 return (f"#{memory_id} is not awaiting approval. It may have been decided already, "
                         f"or the value it would have replaced has since changed — in which case the "
@@ -723,27 +750,30 @@ def confirm_change(memory_id: int, user_id: str = "default", agent_id: str = "",
             _store.save(user_id, m, agent_id, run_id)
             action, subject, value = res
             _audit.record("confirm_change", user_id, agent_id, run_id,
-                          f"#{memory_id} {action.value} {subject} by {decided_by or 'unknown'}")
+                          f"#{memory_id} {action.value} {subject} by {who}")
         return f"Approved #{memory_id}: {action.value} {subject} = {value}"
-    return _guard("confirm_change", go, cap=C.WRITE, space=user_id)
+    return _guard("confirm_change", go, cap=C.APPROVE, space=user_id)
 
 
 @mcp.tool(annotations=_write("Discard a pending change", open_world=False))
 def reject_change(memory_id: int, user_id: str = "default", agent_id: str = "", run_id: str = "",
                   decided_by: str = "") -> str:
     """Discard a proposed change. The current value stands. The proposal is kept as history —
-    that someone proposed it is itself worth being able to audit."""
+    that someone proposed it is itself worth being able to audit. Needs `approve`, like
+    confirm_change: an agent quietly discarding proposals would empty the review queue just as
+    surely as approving them. `decided_by` is an optional note beside the authenticated caller."""
     def go():
+        who = _approver(decided_by)
         with _store.db.space_lock(_space_key(user_id, agent_id, run_id)):
             m = _store.load(user_id, agent_id, run_id)
-            res = m.reject(memory_id, source=decided_by or getattr(_current_principal(), "name", ""))
+            res = m.reject(memory_id, source=who)
             if res is None:
                 return f"#{memory_id} is not awaiting approval."
             _store.save(user_id, m, agent_id, run_id)
             _audit.record("reject_change", user_id, agent_id, run_id,
-                          f"#{memory_id} rejected by {decided_by or 'unknown'}")
+                          f"#{memory_id} rejected by {who}")
         return f"Discarded #{memory_id}. The current value is unchanged."
-    return _guard("reject_change", go, cap=C.WRITE, space=user_id)
+    return _guard("reject_change", go, cap=C.APPROVE, space=user_id)
 
 
 # ── administration (M1): manage the principals (users/agents) of this deployment ──

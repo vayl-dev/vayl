@@ -438,3 +438,37 @@ def test_looks_like_jwt_distinguishes_from_api_keys():
     assert not looks_like_jwt("vayl_sk_abc")          # API key, not a JWT
     assert not looks_like_jwt("no-dots")
     assert not looks_like_jwt("vayl_sk_a.b.c")        # our key scheme is never treated as a JWT
+
+
+# ── confirmation gate: only a person approves, and the record says who ──
+
+def test_approving_a_gated_change_needs_the_approve_capability():
+    for role, allowed in ((Role.ADMIN, True), (Role.MEMBER, True), (Role.AGENT, False),
+                          (Role.VIEWER, False), (Role.AUDITOR, False)):
+        assert Principal("p", "p", [role]).can(Capability.APPROVE) is allowed, role
+    as_role(Role.AGENT)                                    # an agent can write, but not sign off
+    assert "requires the 'approve' capability" in s.confirm_change(1)
+    assert "requires the 'approve' capability" in s.reject_change(1)
+    as_role(Role.MEMBER)
+    assert DENIED not in s.confirm_change(999_999)         # allowed; nothing pending under that id
+
+
+def test_the_recorded_approver_is_the_caller_not_decided_by():
+    s.set_principal(Principal("p_nurse", "nurse-lee", [Role.MEMBER]))
+    assert s._approver() == "nurse-lee [p_nurse]"
+    # a caller can't name someone else as the approver; their text is kept only as a note
+    assert s._approver("Dr. Smith") == "nurse-lee [p_nurse] (note: Dr. Smith)"
+
+
+def test_only_the_source_itself_or_an_approver_may_write_as_a_trusted_source(monkeypatch):
+    """A trusted source skips the confirmation gate, so naming one is itself an approval."""
+    from vayl.memory import llm_memory
+    monkeypatch.setattr(llm_memory, "_TRUSTED_SOURCES", ("fhir",))
+    as_role(Role.AGENT)
+    out = s.remember("stop the warfarin", source="FHIR")          # any agent claiming the feed
+    assert DENIED in out and "trusted source" in out
+    assert s._may_write_as("") and s._may_write_as("nurse-notes")   # untrusted labels stay free
+    s.set_principal(Principal("p_feed", "fhir", [Role.AGENT]))       # the feed's own key
+    assert s._may_write_as("fhir")
+    as_role(Role.MEMBER)                                             # could approve it anyway
+    assert s._may_write_as("fhir")

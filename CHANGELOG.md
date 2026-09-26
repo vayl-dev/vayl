@@ -3,6 +3,26 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- **Only a person can approve a gated change.** `confirm_change` and `reject_change` used to need only
+  `write`, which the `agent` role has, so an agent could approve its own proposal to a confirm-required
+  slot. They now need a new `approve` capability, which only the `admin` and `member` roles have. The
+  approver recorded in the fact and the audit log is the authenticated caller; `decided_by` is kept
+  only as a note beside it, so a caller can no longer name someone else as the approver.
+- **Trusted sources are bound to a key.** A write whose `source` is listed in `VAYL_TRUSTED_SOURCES`
+  skips the confirmation gate, and `source` is chosen by the caller, so any key could skip the gate by
+  labelling its write `fhir`. `remember` now accepts a trusted source only from a key with that name
+  (for example, an integration key created as `create_principal("fhir", role="agent")`) or a key with
+  `approve`. Other callers are denied, and the denial is audited.
+
+### Upgrading
+- Agent keys that called `confirm_change` or `reject_change` are now denied. Approve changes with a
+  `member` or `admin` key.
+- An integration that writes as a trusted source must use a key whose name matches the source.
+- Local stdio use is unaffected: it runs as the local admin.
+
 ## [0.5.1] — 2026-09-26
 
 A hardening patch: atomic schema migrations on SQLite and an opt-out for the in-memory decrypt caches.
