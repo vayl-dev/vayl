@@ -40,6 +40,9 @@ New here? These are self-contained and have a clear template to copy — look fo
 - Keep the **core at two dependencies** (`mcp`, `cryptography`); anything heavier goes behind an
   optional extra in `pyproject.toml`.
 - Unit tests stay **offline and deterministic** — LLM-dependent checks belong in `benchmarks/`.
+  This is enforced: `tests/conftest.py` fails any test that tries to reach a model or cloud port
+  (Ollama, HTTP/S), even if the code swallows the error. Stub the seam instead — e.g.
+  `monkeypatch.setattr("vayl.memory.llm_client._embed", …)` or `llm_memory.llm_extract_classify`.
 - New behaviour needs a test, and `ruff check .` must pass.
 - The audit hash-chain is a security guarantee: changes under `src/vayl/security/audit.py` need a
   concurrency test (see `tests/test_accountability.py`).

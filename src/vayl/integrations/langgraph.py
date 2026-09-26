@@ -27,6 +27,8 @@ surfaces ALL 30+ tools, including admin tools and the `user_id` scope arg the mo
 This adapter keeps one persistent session, exposes a curated memory surface, and binds scope
 server-side so the model can't touch it. Reach for the raw adapters when you want the full toolset.
 """
+from collections.abc import Callable
+
 from vayl.integrations._common import DEFAULT_SYSTEM, TOOL_DESCRIPTIONS, BaseVaylMemory
 
 _MISSING = ("The LangGraph adapter needs langchain-core (and langchain / langgraph for the agent() "
@@ -65,7 +67,7 @@ class VaylMemory(BaseVaylMemory):
         def list_memories() -> str:
             return client.call("list_memories")
 
-        fns = {"remember": remember, "recall": recall, "history": history,
+        fns: dict[str, Callable[..., str]] = {"remember": remember, "recall": recall, "history": history,
                "forget": forget, "list_memories": list_memories}
         return [StructuredTool.from_function(func=fns[n], name=n, description=TOOL_DESCRIPTIONS[n])
                 for n in self._selected(include, exclude)]
@@ -82,7 +84,7 @@ class VaylMemory(BaseVaylMemory):
         try:
             from langchain.agents import create_agent  # LangChain v1
         except ImportError:
-            create_agent = None
+            create_agent = None  # type: ignore[assignment]  # pre-v1 LangChain: fall back below
         if create_agent is not None:
             return create_agent(model, tools=all_tools, system_prompt=prompt, **kwargs)
         try:

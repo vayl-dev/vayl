@@ -74,7 +74,8 @@ class Metrics:
     def snapshot(self):
         """Structured view: {'tools': {name: {calls, errors, avg_ms}}, 'actions': {name: count}}."""
         rows = dict(self.db.execute("SELECT key, value FROM metrics").fetchall())
-        raw_tools, actions = {}, {}
+        raw_tools: dict[str, dict] = {}
+        actions: dict[str, int] = {}
         for key, val in rows.items():
             part = key.split(".")
             if part[0] == "tool" and len(part) == 3:

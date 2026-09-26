@@ -97,5 +97,7 @@ ignore = ["E501", "E701", "E702", "E401", "E741"]
 [tool.mypy]
 python_version = "3.10"
 files = ["src/vayl"]
+# check the bodies of unannotated functions too — that is where most of this codebase lives
+check_untyped_defs = true
 # optional extras (neo4j, langchain, crewai, …) are not installed in every environment
 ignore_missing_imports = true

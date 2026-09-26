@@ -217,7 +217,7 @@ def _guard(tool, fn, cap=None, space=None):
         return _deny(tool, f"principal {principal.id} is not scoped to the requested space",
                      f"Access denied: '{tool}' targets a memory space outside your assigned scope.")
     t0 = time.perf_counter()
-    err = None
+    err: Exception | None = None
     ref = None
     try:
         return fn()
@@ -953,6 +953,7 @@ def health() -> str:
     LLM, and graph (if enabled). Run this to diagnose setup before relying on memory; it makes
     one small LLM/embed call, so it costs a few tokens."""
     def go():
+        from vayl.memory import llm_client
         from vayl.memory.llm_client import _embed
         from vayl.memory.llm_memory import llm_extract_classify
         report = [f"config: LLM_PROVIDER={os.environ.get('LLM_PROVIDER', '(unset)')}, "
@@ -964,14 +965,17 @@ def health() -> str:
             _store.db.execute("SELECT 1"); report.append("db: ok")
         except Exception as e:
             report.append(f"db: FAIL ({type(e).__name__})")   # type only — detail is in server logs
-        try:
-            _embed(["ping"]); report.append("embedder: ok")
-        except Exception as e:
-            report.append(f"embedder: FAIL ({type(e).__name__})")
-        try:
-            llm_extract_classify("health check", []); report.append("llm: ok")
-        except Exception as e:
-            report.append(f"llm: FAIL ({type(e).__name__})")
+        # one attempt each: a diagnostic should report an unreachable endpoint now, not after minutes of
+        # retry backoff — which is exactly the situation someone runs health() to diagnose
+        with llm_client.single_attempt():
+            try:
+                _embed(["ping"]); report.append("embedder: ok")
+            except Exception as e:
+                report.append(f"embedder: FAIL ({type(e).__name__})")
+            try:
+                llm_extract_classify("health check", []); report.append("llm: ok")
+            except Exception as e:
+                report.append(f"llm: FAIL ({type(e).__name__})")
         if _store.graph:
             try:
                 _store.graph.all_edges(limit=1); report.append("graph: ok")
