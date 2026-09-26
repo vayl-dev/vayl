@@ -4,6 +4,8 @@ configuration, generation parameters, and the embeddings call.
 No prompts live here — extraction and answering (llm_memory) build their requests on top of this. Callers
 reach these through the module (`llm_client._embed(...)`), so a test stubs each one in a single place.
 """
+import contextlib
+import contextvars
 import json
 import os
 import random
@@ -34,7 +36,23 @@ def _retry_after(headers, i):
     return float(wait) if wait else min(2 ** i, 30) + random.random()
 
 
-def _http_json(req, timeout, retries=10):
+# Retry budget for _http_json. Normal traffic rides out transient outages with backoff (~2 minutes at the
+# default); a diagnostic wants its verdict now, so it narrows the budget for its own calls.
+_RETRIES = contextvars.ContextVar("vayl_http_retries", default=10)
+
+
+@contextlib.contextmanager
+def single_attempt():
+    """Within this block, model/embedding calls make one attempt and fail fast instead of backing off."""
+    token = _RETRIES.set(1)
+    try:
+        yield
+    finally:
+        _RETRIES.reset(token)
+
+
+def _http_json(req, timeout, retries=None):
+    retries = _RETRIES.get() if retries is None else retries
     for i in range(retries):
         try:
             if _POOL is not None:
