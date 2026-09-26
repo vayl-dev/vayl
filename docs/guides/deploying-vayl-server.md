@@ -29,7 +29,7 @@ The server listens on `http://VAYL_HOST:VAYL_PORT/mcp`.
 
 ## 2. Authentication
 
-Every request to `/mcp` must send `Authorization: Bearer vayl_sk_…`. A missing or invalid key returns `401`. See Authentication & access for the full model.
+Every request to `/mcp` must send `Authorization: Bearer vayl_sk_…`. A missing or invalid key returns `401`. See [Authentication & access](../core-concepts/authentication-and-access.md) for the full model.
 
 ### Bootstrap the first admin
 
@@ -108,5 +108,5 @@ Vayl logs to stderr (never stdout, which the stdio transport uses). Set `VAYL_LO
 
 ## Next
 
-* Configuration — every environment variable.
+* [Configuration](../reference/configuration.md) — every environment variable.
 * Safety gates & human approval — guardrails for high-stakes agents.
