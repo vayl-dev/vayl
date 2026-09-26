@@ -3,15 +3,29 @@
 All notable changes to Vayl are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] — 2026-09-26
 
-Hardening release. Several changes are **breaking** for misconfigured or partially-configured setups;
-each now fails at startup with a message naming the setting.
+Framework adapters, three new presets, per-tenant isolation, and a hardening pass. Several changes are
+**breaking** for misconfigured or partially-configured setups; each now fails at startup with a message
+naming the setting. See **Upgrading from 0.3** below.
 
-### Removed
-- **`vayl.clinical`** (FHIR ingestion and discharge medication reconciliation). It was not wired into
-  any MCP tool or entry point. The **`preset:clinical`** slot schema is unchanged, and its engine
-  behavior (list slots, critical tagging, confirmation gates, trusted sources) keeps its tests.
+### Added
+- **Agent-framework adapters.** `vayl.integrations.langgraph`, `.openai_agents` and `.crewai` expose the
+  same memory tools (`remember`, `recall`, `history`, `forget`, `list_memories`) with the caller's scope
+  bound server-side. Install with the `langgraph`, `openai-agents` or `crewai` extra. (Vercel AI SDK and
+  Mastra adapters ship in the TypeScript client, `@vayl.dev/client`.)
+- **Presets `coding`, `assistant` and `sales`** (`VAYL_SLOT_SCHEMA=preset:coding`, …), alongside
+  `clinical`, `finance` and `support`.
+- **Tenant partitioning.** A principal's `tenant` now filters every store query, so two organizations on
+  one deployment never see each other's memory, even under the same `user_id`.
+- `examples/coding_assistant/`: a runnable example of an agent that remembers project decisions.
+- `VAYL_LOG_LEVEL` (default `WARNING`); logs go to stderr.
+
+### Changed
+- **Invalid configuration fails at startup:** unknown `LLM_PROVIDER` (it silently routed extraction to
+  Anthropic), unknown `VAYL_KMS` (it silently fell back to a key file), `VAYL_KMS=vault` without
+  `VAULT_TOKEN`, and malformed numeric settings.
+- `health()` makes one attempt per dependency instead of backing off for minutes when one is down.
 
 ### Security
 - **Erasure fails closed.** If the Neo4j graph purge fails, `delete` / `delete_all` erase nothing and
@@ -23,17 +37,31 @@ each now fails at startup with a message naming the setting.
   text; full detail is at `DEBUG`.
 - `cryptography>=50` (PYSEC-2026-3552); `pyjwt>=2.13.0` for the `sso` extra (CVE-2022-29217).
 
-### Changed
-- **Invalid configuration fails at startup:** unknown `LLM_PROVIDER` (it silently routed extraction to
-  Anthropic), unknown `VAYL_KMS` (it silently fell back to a key file), `VAYL_KMS=vault` without
-  `VAULT_TOKEN`, and malformed numeric settings.
-- Logging via the standard library to stderr; set the level with `VAYL_LOG_LEVEL` (default `WARNING`).
-- `health()` makes one attempt per dependency instead of backing off for minutes when one is down.
-
 ### Fixed
+- A declared single-valued slot now supersedes the old value even when a weak extractor mislabels the
+  change as an event; previously both values stayed active.
 - Mismatched embedding dimensions (e.g. after changing `EMBED_MODEL`) no longer produce a meaningless
   ranking; recall falls back to lexical ranking and logs it.
 - `VAYL_EXTRACT_RETRIES` below 0 no longer skips extraction and crashes.
+
+### Performance
+- `load()` stays fast as a memory space's history grows: 3.2 ms instead of 93 ms with 200,000 retired
+  facts in one space (SQLite, 500 active facts).
+
+### Removed
+- **`vayl.clinical`** (FHIR ingestion and discharge medication reconciliation). It was not wired into any
+  MCP tool or entry point. The **`preset:clinical`** slot schema is unchanged.
+
+### Upgrading from 0.3
+1. **Back up your database.** The first start applies schema changes automatically (a `tenant_id`
+   column; hot-path indexes replace `idx_space`).
+2. If you set `VAYL_GRAPH=1`, set `NEO4J_PASSWORD`.
+3. `LLM_PROVIDER` must be `openai`, `anthropic` or `groq`. For Ollama or vLLM, use `openai` with
+   `OPENAI_BASE_URL`.
+4. `VAYL_KMS` must be `file` or `vault`; `vault` requires `VAULT_TOKEN`.
+5. Code importing `vayl.clinical` must vendor it. Code importing private helpers from
+   `vayl.memory.llm_memory` (e.g. `_embed`, `_http_json`) should import them from
+   `vayl.memory.llm_client` or `vayl.memory.retrieval`.
 
 ## [0.3.0] — 2026-07-29
 
