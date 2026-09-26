@@ -39,11 +39,14 @@ jobs:
       - name: Unit tests (offline, deterministic)
         run: pytest
 
-      - name: Dependency vulnerability audit (advisory)
+      - name: Dependency vulnerability audit
+        # Blocking: a known-vulnerable dependency fails CI. pip is upgraded first so the audit judges
+        # our dependency set, not the runner's bundled pip.
         if: matrix.python-version == '3.12'
         run: |
-          pip install pip-audit
-          pip-audit --progress-spinner off || echo "::warning::pip-audit reported advisories — review before release"
+          python -m pip install --upgrade pip
+          pip install pip-audit==2.10.1
+          pip-audit --progress-spinner off
 
   integration:
     # Postgres and Neo4j backends against real servers. These suites skip when their database is
