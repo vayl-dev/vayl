@@ -475,7 +475,7 @@ def embed_retrieve(question, statements, k=12):
             for rank, s in enumerate(sorted(embedded, key=lambda s: _cos(qv, s._emb), reverse=True)):
                 sem_rank[id(s)] = rank
         except Exception as e:
-            log.warning("semantic ranking unavailable (%s); recall uses lexical ranking", e)
+            log.warning("semantic ranking unavailable (%s); recall uses lexical ranking", type(e).__name__)
             sem_rank = {}   # embedder down / mismatched embedding dims → lexical carries the query
 
     # lexical ranking
@@ -770,8 +770,8 @@ class LLMMemory:
             try:
                 self.graph.retire_subject_edges(str(subject), ns=self.ns)
             except Exception:
-                log.warning("graph: could not retire edges for %r; the graph may serve a stale edge "
-                            "until it is rebuilt", subject, exc_info=True)
+                log.warning("graph: could not retire a subject's edges; the graph may serve a stale "
+                            "edge until it is rebuilt", exc_info=True)
 
     def _gwrite(self, o, act):
         """Mirror a fact into the Neo4j projection as an entity triple, if a graph is attached."""
