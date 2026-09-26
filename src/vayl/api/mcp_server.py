@@ -953,7 +953,8 @@ def health() -> str:
     LLM, and graph (if enabled). Run this to diagnose setup before relying on memory; it makes
     one small LLM/embed call, so it costs a few tokens."""
     def go():
-        from vayl.memory.llm_memory import _embed, llm_extract_classify
+        from vayl.memory.llm_client import _embed
+        from vayl.memory.llm_memory import llm_extract_classify
         report = [f"config: LLM_PROVIDER={os.environ.get('LLM_PROVIDER', '(unset)')}, "
                   f"model={os.environ.get('OPENAI_MODEL') or os.environ.get('GROQ_MODEL') or '(default)'}",
                   f"license: {_license.edition}" + ("" if _license.valid else f" (rejected: {_license.reason})"),
@@ -994,7 +995,7 @@ def startup():
     """Entry-point setup: logging, then settings that are otherwise read lazily — so a typo fails at
     launch with a clear message instead of on the first tool call."""
     configure_logging()
-    from vayl.memory.llm_memory import _provider
+    from vayl.memory.llm_client import _provider
     _provider()
 
 

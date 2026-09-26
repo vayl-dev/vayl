@@ -338,7 +338,7 @@ def noise(i):
 @pytest.fixture
 def echo_qa(monkeypatch):
     monkeypatch.setattr(llm_memory, "_qa", lambda context, question: context)
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[1.0, 0.0] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[1.0, 0.0] for _ in texts])
 
 
 @pytest.fixture

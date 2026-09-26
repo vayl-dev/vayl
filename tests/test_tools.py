@@ -48,7 +48,7 @@ def _extract(text, active):
 def offline(monkeypatch):
     monkeypatch.setattr(llm_memory, "llm_extract_classify", _extract)
     monkeypatch.setattr(llm_memory, "_qa", lambda context, question: context)   # answer = facts used
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[0.1, 0.2] for _ in texts])
+    monkeypatch.setattr("vayl.memory.llm_client._embed", lambda texts: [[0.1, 0.2] for _ in texts])
     monkeypatch.setattr(store_mod, "_embed", lambda texts: [[0.1, 0.2] for _ in texts])
 
 

@@ -14,7 +14,7 @@ The Python-side neighborhood+rank path remains as a fallback when embeddings are
 import logging
 import re
 
-from vayl.memory.llm_memory import _embed
+from vayl.memory.llm_client import _embed
 
 log = logging.getLogger(__name__)
 

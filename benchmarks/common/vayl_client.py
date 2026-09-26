@@ -27,7 +27,8 @@ import os
 from collections import defaultdict
 from typing import Any
 
-from vayl.memory.llm_memory import LLMMemory, Status, embed_retrieve
+from vayl.memory.llm_memory import LLMMemory, Status
+from vayl.memory.retrieval import embed_retrieve
 from vayl.storage import store as store_mod
 from vayl.storage.store import Store
 

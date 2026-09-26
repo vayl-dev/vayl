@@ -4,9 +4,10 @@ The read path — how a recall assembles context: raw text, query-embedding cach
 
 import pytest
 
-from vayl.memory import llm_memory
-from vayl.memory.llm_memory import LLMMemory, _ctx_line, embed_retrieve
+from vayl.memory import llm_client, llm_memory, retrieval
+from vayl.memory.llm_memory import LLMMemory, _ctx_line
 from vayl.memory.reconcile import Statement
+from vayl.memory.retrieval import embed_retrieve
 from vayl.storage import store as store_mod
 from vayl.storage.store import Store
 
@@ -26,9 +27,9 @@ def echo_qa(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def clear_cache():
-    llm_memory._QEMB_CACHE.clear()
+    retrieval._QEMB_CACHE.clear()
     yield
-    llm_memory._QEMB_CACHE.clear()
+    retrieval._QEMB_CACHE.clear()
 
 
 def test_context_carries_the_sentence_a_fact_came_from(echo_qa):
@@ -89,7 +90,7 @@ def _many(n=30):
 
 def test_identical_questions_embed_once(monkeypatch):
     calls = []
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: calls.append(texts) or [[0.1, 0.2]])
+    monkeypatch.setattr(llm_client, "_embed", lambda texts: calls.append(texts) or [[0.1, 0.2]])
     stmts = _many()
     embed_retrieve("what plan is the customer on?", stmts, k=5)
     embed_retrieve("what plan is the customer on?", stmts, k=5)
@@ -99,7 +100,7 @@ def test_identical_questions_embed_once(monkeypatch):
 
 def test_different_questions_embed_separately(monkeypatch):
     calls = []
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: calls.append(texts) or [[0.1, 0.2]])
+    monkeypatch.setattr(llm_client, "_embed", lambda texts: calls.append(texts) or [[0.1, 0.2]])
     stmts = _many()
     embed_retrieve("question one", stmts, k=5)
     embed_retrieve("question two", stmts, k=5)
@@ -108,18 +109,18 @@ def test_different_questions_embed_separately(monkeypatch):
 
 def test_cache_is_bounded(monkeypatch):
     """A long-lived server must not grow this without limit."""
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[0.1, 0.2]])
-    monkeypatch.setattr(llm_memory, "_QEMB_CACHE_MAX", 4)
+    monkeypatch.setattr(llm_client, "_embed", lambda texts: [[0.1, 0.2]])
+    monkeypatch.setattr(retrieval, "_QEMB_CACHE_MAX", 4)
     stmts = _many()
     for i in range(12):
         embed_retrieve(f"question {i}", stmts, k=5)
-    assert len(llm_memory._QEMB_CACHE) <= 4
+    assert len(retrieval._QEMB_CACHE) <= 4
 
 
 def test_cache_can_be_disabled(monkeypatch):
     calls = []
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: calls.append(1) or [[0.1, 0.2]])
-    monkeypatch.setattr(llm_memory, "_QEMB_CACHE_MAX", 0)
+    monkeypatch.setattr(llm_client, "_embed", lambda texts: calls.append(1) or [[0.1, 0.2]])
+    monkeypatch.setattr(retrieval, "_QEMB_CACHE_MAX", 0)
     stmts = _many()
     embed_retrieve("same question", stmts, k=5)
     embed_retrieve("same question", stmts, k=5)
@@ -130,11 +131,11 @@ def test_a_failing_embedder_still_degrades_to_lexical(monkeypatch):
     """The cache must not turn a recoverable embedder outage into a failed read."""
     def boom(texts):
         raise RuntimeError("embedder down")
-    monkeypatch.setattr(llm_memory, "_embed", boom)
+    monkeypatch.setattr(llm_client, "_embed", boom)
     stmts = _many()
     got = embed_retrieve("k7", stmts, k=5)     # must not raise
     assert [s.subject for s in got] == ["k7"]  # lexical ranking found it without the embedder
-    assert llm_memory._QEMB_CACHE == {}        # a failed embed is never cached
+    assert retrieval._QEMB_CACHE == {}        # a failed embed is never cached
 
 
 def test_embedding_text_includes_the_source_sentence():
@@ -308,7 +309,7 @@ def test_lexical_surfaces_a_keyword_match_with_no_embeddings():
 def test_hybrid_pulls_in_a_keyword_match_semantic_ranking_would_miss(monkeypatch):
     # question vector points straight at A; B is semantically orthogonal (cosine 0) but is the
     # keyword match. Pure-semantic top-3 = A, D, F (not B). Fusion must pull B in and drop F.
-    monkeypatch.setattr(llm_memory, "_embed", lambda texts: [[1.0, 0.0, 0.0]])
+    monkeypatch.setattr(llm_client, "_embed", lambda texts: [[1.0, 0.0, 0.0]])
     A = mk("provider", "Acme", [1.0, 0.0, 0.0])
     B = mk("monitoring", "Sentry", [0.0, 1.0, 0.0])
     C = mk("c", "c", [0.0, 0.0, 1.0])

@@ -22,7 +22,8 @@ import logging
 import os
 import time
 
-from vayl.memory.llm_memory import LLMMemory, _embed
+from vayl.memory.llm_client import _embed
+from vayl.memory.llm_memory import LLMMemory
 from vayl.memory.reconcile import Statement, Status
 from vayl.security import crypto
 from vayl.storage.db import Database
