@@ -16,11 +16,19 @@ log = logging.getLogger(__name__)
 _sumprod = getattr(math, "sumprod", None)
 
 
-def _cos(a, b):
+def _norm(v):
+    # stored vectors carry a norm computed once at decode (store._Vec); anything else pays for it here
+    n = getattr(v, "norm", None)
+    return math.hypot(*v) if n is None else n
+
+
+def _cos(a, b, na=None):
+    """Cosine similarity. Pass `na` when ranking many vectors against the same `a`."""
     if len(a) != len(b):   # mixed embedding dims (e.g. after an EMBED_MODEL change) must not rank silently
         raise ValueError(f"embedding dimensions differ: {len(a)} vs {len(b)}")
     dot = _sumprod(a, b) if _sumprod else sum(map(operator.mul, a, b))
-    na, nb = math.hypot(*a), math.hypot(*b)
+    na = _norm(a) if na is None else na
+    nb = _norm(b)
     return dot / (na * nb) if na and nb else 0.0
 
 
@@ -75,8 +83,8 @@ def embed_retrieve(question, statements, k=12):
     embedded = [s for s in statements if getattr(s, "_emb", None)]
     if embedded:
         try:
-            qv = _embed_query(question)
-            for rank, s in enumerate(sorted(embedded, key=lambda s: _cos(qv, s._emb), reverse=True)):
+            qv = _embed_query(question); qn = _norm(qv)
+            for rank, s in enumerate(sorted(embedded, key=lambda s: _cos(qv, s._emb, qn), reverse=True)):
                 sem_rank[id(s)] = rank
         except Exception as e:
             log.warning("semantic ranking unavailable (%s); recall uses lexical ranking", type(e).__name__)
@@ -112,8 +120,8 @@ def _rank_triples(question, triples, k=15):
         return triples
     try:
         vecs = llm_client._embed([question] + [f"{h} {rel} {t}" for h, rel, t in triples])
-        qv = vecs[0]
-        ranked = sorted(zip(triples, vecs[1:], strict=True), key=lambda x: _cos(qv, x[1]), reverse=True)
+        qv = vecs[0]; qn = _norm(qv)
+        ranked = sorted(zip(triples, vecs[1:], strict=True), key=lambda x: _cos(qv, x[1], qn), reverse=True)
         return [t for t, _ in ranked[:k]]
     except Exception:
         return triples[:k]

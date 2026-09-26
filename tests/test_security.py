@@ -103,7 +103,7 @@ def test_data_is_ciphertext_at_rest_but_plaintext_on_read(tmp_path, _encrypted_e
 
 
 def test_decrypt_cache_is_dropped_by_every_hard_delete(tmp_path, _encrypted_env):
-    """Reloads decrypt through a plaintext cache; erasure and retention must not leave it behind."""
+    """Reloads decrypt through plaintext and vector caches; erasure and retention must not leave them behind."""
     st = Store(str(tmp_path / "vayl.db"))
     cache = st.crypter._dec_short
     for erase in (lambda: st.delete("u1", "salary"), lambda: st.delete_all("u1"),
@@ -111,9 +111,12 @@ def test_decrypt_cache_is_dropped_by_every_hard_delete(tmp_path, _encrypted_env)
         m = LLMMemory()
         m._apply(fact(subject="salary", value="120000"), "alice earns 120000")
         st.save("u1", m)
-        assert st.load("u1").active()[0].value == "120000" and cache.cache_info().currsize > 0
+        m = st.load("u1")
+        assert m.active()[0].value == "120000" and cache.cache_info().currsize > 0
+        st.hydrate_embeddings("u1", m.statements)
+        assert st._vectors
         erase()
-        assert cache.cache_info().currsize == 0
+        assert cache.cache_info().currsize == 0 and not st._vectors
 
 
 def test_subject_queries_work_under_encryption(tmp_path, _encrypted_env):

@@ -6,12 +6,17 @@ All notable changes to Vayl are documented here. This project adheres to
 ## [Unreleased]
 
 ### Performance
-- **Faster tool calls on large memories.** Every tool call reloads the memory space and decrypted every
-  row again. Short encrypted fields now go through a bounded ciphertext→plaintext cache (at most 32,768
-  entries). Every hard delete (`forget`, account erasure, retention expiry) clears the cache, so erased
-  plaintext doesn't stay in process memory. Recall ranking now computes cosine similarity with
-  `math.sumprod` on Python 3.12+. At 1,000 facts, with encryption on and model calls stubbed out,
-  median `remember` drops from 122 ms to 25 ms and `recall` from 444 ms to 205 ms.
+- **Faster tool calls on large memories.** Every tool call reloads the memory space. Before this change
+  it decrypted every row again and re-parsed every embedding. Short encrypted fields now go through a
+  bounded ciphertext→plaintext cache. Decoded embeddings are cached by the SHA-256 of their stored text
+  and carry a precomputed norm, and recall ranks with `math.sumprod` on Python 3.12+. Every hard delete
+  (`forget`, account erasure, retention expiry) clears both caches, so erased data doesn't stay in
+  process memory. At 1,000 facts, with encryption on and model calls stubbed out, median `remember`
+  drops from 122 ms to 23 ms and `recall` from 444 ms to 59 ms.
+
+### Added
+- `VAYL_VECTOR_CACHE` (default 8192): how many decoded embeddings to keep, about 6 KB each at 1536
+  dimensions. A space with more embedded facts than this re-decrypts the overflow on every recall.
 
 ## [0.4.0] — 2026-09-26
 

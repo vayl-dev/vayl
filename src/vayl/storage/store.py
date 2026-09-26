@@ -16,12 +16,16 @@ History stays on disk and is read lazily via get_row() / history_rows() / cold_t
 import array
 import base64
 import contextvars
+import hashlib
 import itertools
 import json
 import logging
+import math
 import os
+import threading
 import time
 
+from vayl.config import env_int
 from vayl.memory.llm_client import _embed
 from vayl.memory.llm_memory import LLMMemory
 from vayl.memory.reconcile import Statement, Status
@@ -30,7 +34,18 @@ from vayl.storage.db import Database
 
 log = logging.getLogger(__name__)
 
-_HOT = ("ACTIVE", "FLAGGED_CONFLICT")   # statuses kept in the in-memory working set
+# Decoded-vector cache size (entries, ~6 KB each at 1536 dims -> ~50 MB at the default).
+# ponytail: FIFO eviction; a space with more embedded facts than this re-decrypts the overflow on each
+# recall. Raise VAYL_VECTOR_CACHE for spaces that large.
+_VECTOR_CACHE = env_int("VAYL_VECTOR_CACHE", 8192)
+_HOT = ("ACTIVE", "FLAGGED_CONFLICT")
+
+
+class _Vec(array.array):
+    """A decoded embedding that carries its own norm, computed once. Cached vectors are ranked on
+    every recall; recomputing |v| each time was a third of ranking cost. Riding on the vector (not a
+    side table) means a re-embedded fact can never be ranked with its old norm."""
+    norm: float   # statuses kept in the in-memory working set
 
 # The active tenant for the current request. The remote server binds it from the caller's principal
 # (see api.mcp_server.set_principal); unset (stdio / single-tenant) falls back to the Store's default.
@@ -79,6 +94,8 @@ class Store:
         # become ciphertext; `subject_hmac` is a blind index so subject-equality queries still work.
         # Structural columns (ids/status/confidence/scope) stay plaintext.
         self.crypter = crypto.resolve(path)
+        self._vectors = {}          # sha256(stored embedding) -> decoded vector; see _vector()
+        self._vectors_lock = threading.Lock()
         # Backend: SQLite by default (the `path`); Postgres when VAYL_DATABASE_URL is set (M6).
         self.db = Database(os.environ.get("VAYL_DATABASE_URL") or path)
         self.db.execute("""CREATE TABLE IF NOT EXISTS statements(
@@ -153,11 +170,33 @@ class Store:
             return None
         if raw.lstrip().startswith("["):          # legacy JSON vector
             return json.loads(raw)
-        a = array.array("f")
+        a = _Vec("f")   # float32: an eighth of the memory of a list of floats
         a.frombytes(base64.b64decode(raw))
-        return list(a)
+        a.norm = math.hypot(*a)
+        return a
+
+    def _vector(self, stored):
+        """Decrypt + decode a stored embedding, cached by the SHA-256 of what is on disk.
+
+        Every recall reloads the space and ranks every fact, so without this each call re-decrypted and
+        re-parsed every vector (~180 us each). The key is the exact stored text, so an entry can never go
+        stale: a re-embedded fact has a new ciphertext. Vectors are only ever replaced, never mutated in
+        place, so sharing one across loads is safe."""
+        if not stored:
+            return None
+        key = hashlib.sha256(stored.encode()).digest()
+        vec = self._vectors.get(key)
+        if vec is None:
+            vec = self._emb_decode(self._dec(stored))
+            with self._vectors_lock:      # tool calls run on worker threads
+                if len(self._vectors) >= _VECTOR_CACHE:
+                    self._vectors.pop(next(iter(self._vectors)))   # drop the oldest insert
+                self._vectors[key] = vec
+        return vec
 
     def _forget_plaintext(self):
+        with self._vectors_lock:
+            self._vectors.clear()  # embeddings are derived from the erased text too
         if self.crypter:
             self.crypter.forget()
 
@@ -180,7 +219,7 @@ class Store:
             st._emb = None
             st._has_emb = bool(emb)          # on disk, not loaded — hydrate only if we must rank
         else:
-            st._emb = self._emb_decode(self._dec(emb))
+            st._emb = self._vector(emb)
             st._has_emb = st._emb is not None
         st.metadata = json.loads(meta) if meta else None
         st.created_at = created_at        # provenance / staleness
@@ -427,7 +466,7 @@ class Store:
             (self.tenant, user_id, agent_id, run_id, *ids)).fetchall()
         by_id = {r[0]: r[1] for r in rows}
         for s in want:
-            s._emb = self._emb_decode(self._dec(by_id.get(s.id)))
+            s._emb = self._vector(by_id.get(s.id))
         return len(want)
 
     def reproject_graph(self, wipe=True):
