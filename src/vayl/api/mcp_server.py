@@ -987,12 +987,40 @@ def health() -> str:
     return _guard("health", go, cap=C.VERIFY)
 
 
+# The HTTP request a log line belongs to (set by server.RequestIdMiddleware; "-" on stdio).
+REQUEST_ID = contextvars.ContextVar("vayl_request_id", default="-")
+
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = REQUEST_ID.get()
+        return True
+
+
+class _JsonFormatter(logging.Formatter):
+    """One JSON object per line, for log shippers. `extra={"fields": {...}}` adds structured keys."""
+    def format(self, record):
+        out = {"ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"), "level": record.levelname,
+               "logger": record.name, "request_id": getattr(record, "request_id", "-"),
+               "msg": record.getMessage(), **getattr(record, "fields", {})}
+        if record.exc_info:
+            out["exc"] = self.formatException(record.exc_info)
+        return json.dumps(out, default=str)
+
+
 def configure_logging():
     """Called by the entry points only — library code just gets loggers. Always stderr: on stdio the
-    MCP protocol owns stdout. VAYL_LOG_LEVEL sets verbosity (default WARNING); an unknown level fails
-    at startup rather than being silently ignored."""
-    logging.basicConfig(stream=sys.stderr, level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(),
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    MCP protocol owns stdout. VAYL_LOG_LEVEL sets verbosity (default WARNING) and VAYL_LOG_FORMAT picks
+    `text` (default) or `json`; an unknown value of either fails at startup rather than being ignored.
+    Every line carries the request ID, so an error ref can be traced back to the HTTP request."""
+    fmt = os.environ.get("VAYL_LOG_FORMAT", "text").lower()
+    if fmt not in ("text", "json"):
+        raise ValueError(f"VAYL_LOG_FORMAT must be 'text' or 'json', got {fmt!r}")
+    handler = logging.StreamHandler(sys.stderr)
+    handler.addFilter(_RequestIdFilter())
+    handler.setFormatter(_JsonFormatter() if fmt == "json" else logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s [%(request_id)s]: %(message)s"))
+    logging.basicConfig(level=os.environ.get("VAYL_LOG_LEVEL", "WARNING").upper(), handlers=[handler])
 
 
 def startup():

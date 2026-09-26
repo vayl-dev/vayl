@@ -70,6 +70,55 @@ def test_metrics_requires_a_token_when_configured(client_and_key, monkeypatch):
     assert ok.status_code == 200 and "vayl_principals_active" in ok.text
 
 
+def test_request_id_reaches_sync_code_and_is_echoed():
+    # a sync endpoint runs on a worker thread, as tools do: the bound ID must follow it there
+    def seen(request):
+        return PlainTextResponse(mcp_server.REQUEST_ID.get())
+
+    app = srv.RequestIdMiddleware(Starlette(routes=[Route("/x", seen)]))
+    with TestClient(app) as c:
+        r = c.get("/x")
+        assert len(r.text) == 16 and r.headers["x-request-id"] == r.text             # generated
+        r = c.get("/x", headers={"X-Request-ID": "lb-7f3a.2"})
+        assert r.text == r.headers["x-request-id"] == "lb-7f3a.2"                  # proxy's ID reused
+        for bad in ("a b", "x" * 65, "idé"):                                  # not plain → replaced
+            r = c.get("/x", headers={"X-Request-ID": bad.encode("latin-1")})
+            assert r.text != bad and len(r.text) == 16
+    assert mcp_server.REQUEST_ID.get() == "-"                                      # unbound afterwards
+
+
+def test_rejections_at_the_edge_still_get_a_request_id(client_and_key, monkeypatch):
+    client, _key = client_and_key
+    monkeypatch.setattr(srv, "_MAX_BODY", 8)
+    r = client.post("/mcp", content=b"x" * 64)
+    assert r.status_code == 413 and len(r.headers["x-request-id"]) == 16
+
+
+def test_json_log_lines_carry_request_id_and_fields(monkeypatch):
+    import json
+    import logging
+    monkeypatch.setenv("VAYL_LOG_FORMAT", "json")
+    root = logging.getLogger()
+    saved = root.handlers[:], root.level
+    root.handlers = []                     # basicConfig is a no-op when handlers exist
+    try:
+        mcp_server.configure_logging()
+        handler = root.handlers[0]
+        token = mcp_server.REQUEST_ID.set("req-1")
+        rec = logging.LogRecord("vayl.x", logging.INFO, __file__, 1, "GET %s", ("/mcp",), None)
+        rec.fields = {"status": 200}
+        assert handler.filter(rec)
+        mcp_server.REQUEST_ID.reset(token)
+        line = json.loads(handler.format(rec))
+        assert line["request_id"] == "req-1" and line["msg"] == "GET /mcp" and line["status"] == 200
+    finally:
+        root.handlers, _ = saved
+        root.setLevel(saved[1])
+    monkeypatch.setenv("VAYL_LOG_FORMAT", "yaml")
+    with pytest.raises(ValueError, match="VAYL_LOG_FORMAT"):
+        mcp_server.configure_logging()
+
+
 def test_render_prometheus_shape():
     snap = {"tools": {"recall": {"calls": 5, "errors": 1, "avg_ms": 12.3}},
             "actions": {"SUPERSEDE": 3}}
