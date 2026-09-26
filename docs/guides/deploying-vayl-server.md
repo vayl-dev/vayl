@@ -1,7 +1,7 @@
 ---
 description: >-
   Run Vayl as an authenticated, self-hosted team server — install, Docker, auth,
-  TLS, Postgres, and key custody.
+  TLS, Postgres, key custody, logging, and upgrades.
 icon: globe
 ---
 
@@ -94,6 +94,29 @@ Vault Transit envelope-encrypts the data key: the master key never leaves Vault,
 
 Vayl logs to stderr (never stdout, which the stdio transport uses). Set `VAYL_LOG_LEVEL` — `WARNING` by default. `ERROR` lines carry a reference, the exception type and the code location, but never the exception text, which can contain memory content. That detail is logged only at `DEBUG`, so enable `DEBUG` deliberately and treat those logs as sensitive.
 
+**Request IDs.** Every request gets an ID, returned in the `X-Request-ID` response header and included on every log line written while serving it. If your proxy sends its own `X-Request-ID` (up to 64 characters of letters, digits and `. _ : -`), Vayl reuses it so the two logs line up. When a client reports an error `ref`, search the logs for it to find the request ID, then everything else that request did.
+
+At `INFO`, each request writes one access line with method, path, status and duration. It never includes the client IP, query string or body. Health, readiness and metrics probes log at `DEBUG`.
+
+Set `VAYL_LOG_FORMAT=json` for one JSON object per line:
+
+```json
+{"ts": "2026-09-26T10:41:10+0000", "level": "INFO", "logger": "vayl.api.server", "request_id": "3f9a1c2e4b7d8a01", "msg": "POST /mcp 200 41.2ms", "method": "POST", "path": "/mcp", "status": 200, "duration_ms": 41.2}
+```
+
+## 8. Upgrades and rollback
+
+Back up the database (and, with `VAYL_KMS=file`, the key files) before upgrading. Vayl applies pending schema migrations on startup, in order, and records them in the `schema_migrations` table.
+
+```bash
+vayl-migrate status   # applied and pending migrations
+vayl-migrate up       # apply pending migrations now
+```
+
+Migrations run under a lock, so several processes starting at once are safe. With several `vayl-server` processes on one Postgres, you can still run `vayl-migrate up` once before rolling out.
+
+**Rolling back.** Migrations are additive, so the previous release keeps running on an upgraded database: roll back the package or image and start it. The changelog flags any migration that isn't additive; for those, restore the backup. A Vayl older than the database's schema refuses to start and says which version it found, so it never writes to a schema it doesn't understand.
+
 ## Hardening checklist
 
 * [ ] Behind a TLS-terminating proxy; never `0.0.0.0` raw.
@@ -105,6 +128,7 @@ Vayl logs to stderr (never stdout, which the stdio transport uses). Set `VAYL_LO
 * [ ] If the graph is enabled: `NEO4J_PASSWORD` set (Vayl refuses to start the graph without one).
 * [ ] `VAYL_LOG_LEVEL` at `WARNING` or `INFO` in production — `DEBUG` logs can contain memory content.
 * [ ] OS full-disk encryption; restrict permissions on the data directory.
+* [ ] Backups tested, and taken before every upgrade.
 
 ## Next
 
