@@ -85,3 +85,18 @@ def test_embedder_follows_the_openai_key_and_leaves_explicit_endpoints_alone(mon
     monkeypatch.delenv("OPENAI_API_KEY")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://vllm.internal/v1")    # other endpoint: unchanged
     assert _embed_config()[::2] == ("https://vllm.internal/v1", "nomic-embed-text")
+
+
+def test_cli_help_and_version_answer_without_starting_or_touching_a_db(tmp_path, monkeypatch, capsys):
+    """`vayl-mcp --help` used to start the stdio server and create vayl.db in the working directory."""
+    import vayl
+    from vayl import cli
+    monkeypatch.chdir(tmp_path)
+    for entry, prog in ((cli.mcp, "vayl-mcp"), (cli.server, "vayl-server")):
+        for flag in ("--help", "--version"):
+            with pytest.raises(SystemExit) as done:
+                entry([flag])
+            assert done.value.code == 0
+        out = capsys.readouterr().out
+        assert f"usage: {prog}" in out and f"{prog} {vayl.__version__}" in out
+    assert list(tmp_path.iterdir()) == []

@@ -61,8 +61,8 @@ dev = ["pytest>=8", "ruff>=0.16.1", "mypy>=1.10", "langchain-core>=1.5.3", "open
 
 [project.scripts]
 vayl-demo = "vayl.demo:main"                          # zero-setup 30s demo of reconciling memory
-vayl-mcp = "vayl.api.mcp_server:main"
-vayl-server = "vayl.api.server:main"
+vayl-mcp = "vayl.cli:mcp"
+vayl-server = "vayl.cli:server"
 vayl-migrate = "vayl.storage.migrations:main"            # schema status / apply pending migrations
 vayl-license = "vayl.licensing.mint_license:main"   # vendor-side: keygen + mint customer licenses
 
