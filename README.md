@@ -398,7 +398,7 @@ Without scopes a principal is **unrestricted** — correct for single-tenant, wr
 ```bash
 docker compose up -d --build
 # bootstrap the first admin (one-off) — copy the printed key:
-docker compose run --rm vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
 curl localhost:8080/healthz        # liveness   ·   curl localhost:8080/metrics  → Prometheus
 ```
 

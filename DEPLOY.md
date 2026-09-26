@@ -84,10 +84,12 @@ docker compose logs -f vayl        # watch for "Uvicorn running" / "Application 
 
 ## 4. Bootstrap the first admin (one-off)
 
-The server requires authenticated principals. Mint the first admin and **copy the key — it's shown once**:
+The server requires authenticated principals. Mint the first admin and **copy the key — it's shown once**.
+This one-off command runs in its own container, not through the server, so it turns off the image's
+`VAYL_AUTH_REQUIRED=1` for that container only:
 
 ```bash
-docker compose run --rm vayl python -c "import mcp_server as s; print(s.create_principal('admin', role='admin'))"
+docker compose run --rm -e VAYL_AUTH_REQUIRED=0 vayl python -c "from vayl.api import mcp_server as s; print(s.create_principal('admin', role='admin'))"
 ```
 
 Use that admin key to create the day-to-day principals your agents/users will use (roles:
