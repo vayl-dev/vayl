@@ -178,6 +178,13 @@ def _deny(tool, reason, message):
     return message
 
 
+def _is_operator(principal):
+    """The deployment operator: an admin of the 'default' tenant, which includes the local stdio admin.
+    Only the operator reaches across tenants (principals in every tenant, the deployment-wide audit
+    purge, deployment-wide metrics). An admin of any other tenant runs only that tenant."""
+    return principal is not None and principal.can(C.ADMIN) and principal.tenant == "default"
+
+
 def _critical(spec):
     """Parse a comma-separated critical-category list. Empty means 'use the deployment default'
     (VAYL_CRITICAL_CATEGORIES), NOT 'none' — a caller must not be able to silently opt out of
@@ -808,7 +815,7 @@ def reject_change(memory_id: int, user_id: str = "default", agent_id: str = "", 
 
 @mcp.tool(annotations=_write("Create a principal (user/agent) + API key", open_world=False))
 def create_principal(name: str, role: str = "member", kind: str = "agent",
-                     scopes: str = "", tenant: str = "default") -> str:
+                     scopes: str = "", tenant: str = "") -> str:
     """Admin only. Create a principal (a human user, agent, or service) and issue its API key. Roles:
     admin, member, agent, viewer, auditor. The key is shown ONCE — store it securely; it can't be
     recovered (reissue by creating a new principal).
@@ -819,10 +826,17 @@ def create_principal(name: str, role: str = "member", kind: str = "agent",
     key can read any space by passing that space's user_id. An admin role is unrestricted
     regardless, since org control implies reaching every space.
 
-    `tenant` is the org partition this key belongs to (default "default"). It is a HARD boundary:
-    every store query is filtered by it, so a key for one tenant cannot reach another tenant's
-    memory even under the same user_id. Set it per org in a shared multi-tenant deployment."""
+    `tenant` is the org partition this key belongs to (default: the caller's own tenant). It is a
+    HARD boundary: every store query is filtered by it, so a key for one tenant cannot reach another
+    tenant's memory even under the same user_id. Set it per org in a shared multi-tenant deployment.
+    Only the deployment operator (an admin of the "default" tenant) may name a different tenant."""
     def go():
+        caller = _current_principal()
+        target = (tenant or "").strip() or caller.tenant
+        if target != caller.tenant and not _is_operator(caller):
+            return _deny("create_principal", f"admin of tenant '{caller.tenant}' tried to create a "
+                         f"principal in tenant '{target}'",
+                         "Access denied: you can only create principals in your own tenant.")
         try:
             role_enum = auth.Role(role.lower())
         except ValueError:
@@ -831,7 +845,7 @@ def create_principal(name: str, role: str = "member", kind: str = "agent",
             return (f"Seat limit reached: {_license.seat_cap} active principal(s) allowed on the "
                     f"{_license.edition} edition. Revoke an unused principal, or install a license "
                     f"with more seats (see mint_license.py / VAYL_LICENSE).")
-        p, key = _auth.create(name, roles=role_enum, kind=kind, scopes=scopes or None, tenant=tenant)
+        p, key = _auth.create(name, roles=role_enum, kind=kind, scopes=scopes or None, tenant=target)
         _audit.record("create_principal", getattr(_current_principal(), "id", "") or "", "", "",
                       f"{p.id} '{name}' role={role_enum.value} tenant={p.tenant} "
                       f"scopes={','.join(p.scopes) or '*'}")
@@ -842,15 +856,17 @@ def create_principal(name: str, role: str = "member", kind: str = "agent",
 
 @mcp.tool(annotations=_ro("List principals of this deployment"))
 def list_principals() -> str:
-    """Admin only. List the deployment's principals — id, name, roles, and whether disabled.
-    Never shows API keys (only their hashes are stored)."""
+    """Admin only. List your tenant's principals — id, name, roles, and whether disabled (the
+    deployment operator sees every tenant's). Never shows API keys (only their hashes are stored)."""
     def go():
-        rows = _auth.list()
+        caller = _current_principal()
+        rows = _auth.list(tenant=None if _is_operator(caller) else caller.tenant)
         if not rows:
             return "No principals yet. Create one with create_principal."
         return "\n".join(
             f"{'✗' if r['disabled'] else '•'} {r['id']}  {r['name']}  "
             f"[{', '.join(r['roles'])}]  {r['kind']}" + ("  (disabled)" if r['disabled'] else "")
+            + (f"  tenant={r['tenant']}" if r['tenant'] != "default" else "")
             for r in rows)
     return _guard("list_principals", go, cap=C.ADMIN)
 
@@ -861,6 +877,9 @@ def license_status() -> str:
     allowed, expiry, and unlocked features. If a license was rejected (tampered/expired/wrong key),
     this says so and reports the Community fallback it's running under."""
     def go():
+        # seats are counted across every tenant, so only the deployment operator sees the usage
+        if not _is_operator(_current_principal()):
+            return f"{_license.summary()}\n  (seat usage is visible to the deployment operator)"
         used = _auth.count_active()
         return f"{_license.summary()}\n  principals in use: {used} / {_license.seat_cap}"
     return _guard("license_status", go, cap=C.VERIFY)
@@ -870,16 +889,19 @@ def license_status() -> str:
 def revoke_principal(principal_id: str, erase: bool = False) -> str:
     """Admin only. Disable a principal — its API key stops working immediately. Irreversible
     (create a new principal to restore access). With `erase=True`, the principal row is HARD-deleted
-    (Art. 17 for team members) instead of retained as disabled."""
+    (Art. 17 for team members) instead of retained as disabled. A tenant admin can only revoke its
+    own tenant's principals; another tenant's id reads as unknown."""
     def go():
+        caller = _current_principal()
+        tenant = None if _is_operator(caller) else caller.tenant
         if erase:
-            ok = _auth.delete(principal_id)
+            ok = _auth.delete(principal_id, tenant=tenant)
             if ok:
                 _audit.record("erase_principal", getattr(_current_principal(), "id", "") or "", "", "",
                               principal_id)
             return (f"Erased {principal_id} — key revoked and the principal record hard-deleted." if ok
                     else f"No principal {principal_id}.")
-        ok = _auth.revoke(principal_id)
+        ok = _auth.revoke(principal_id, tenant=tenant)
         if ok:
             _audit.record("revoke_principal", getattr(_current_principal(), "id", "") or "", "", "",
                           principal_id)
@@ -930,10 +952,16 @@ def purge_expired(older_than_days: int, user_id: str = "default", agent_id: str 
                   include_receipts: bool = False) -> str:
     """Retention / storage-limitation (GDPR Art. 5(1)(e)): permanently delete records written more
     than `older_than_days` ago. Statements are scoped to the user/space. The optional flags extend
-    the same window to the append-only tables — NOTE these are DEPLOYMENT-WIDE, not per-user:
-    `include_audit` purges the audit log from the head of the chain (a signed retention anchor keeps
-    the remaining chain verifiable), `include_decisions` and `include_receipts` purge those tables."""
+    the same window to the append-only tables — NOTE these are not per-user: `include_decisions` and
+    `include_receipts` purge those tables for your whole tenant, and `include_audit` purges the audit
+    log from the head of the chain (a signed retention anchor keeps the remaining chain verifiable).
+    There is one chain per deployment, shared by every tenant, so `include_audit` is DEPLOYMENT-WIDE
+    and only the deployment operator may use it."""
     def go():
+        if include_audit and not _is_operator(_current_principal()):
+            return _deny("purge_expired", "include_audit requested by a non-operator",
+                         "Access denied: the audit log is shared by every tenant, so only the "
+                         "deployment operator may purge it (include_audit).")
         n = _store.expire(user_id, older_than_days, agent_id or None, run_id or None)
         extra = []
         if include_decisions:
@@ -944,7 +972,7 @@ def purge_expired(older_than_days: int, user_id: str = "default", agent_id: str 
             extra.append(f"audit={_audit.purge(older_than_days)}")
         _audit.record("purge_expired", user_id, agent_id, run_id,
                       f"older_than={older_than_days}d rows={n} " + " ".join(extra))
-        tail = f" Also purged (deployment-wide): {', '.join(extra)}." if extra else ""
+        tail = f" Also purged: {', '.join(extra)}." if extra else ""
         return f"Purged {n} record(s) older than {older_than_days} days.{tail}"
     return _guard("purge_expired", go, cap=C.ADMIN)
 
@@ -960,11 +988,15 @@ def audit_log(limit: int = 50, user_id: str = "") -> str:
         if not user_id and not _current_principal().can(C.ADMIN):
             return ("Access denied: the deployment-wide audit log requires the 'admin' capability. "
                     "Pass a user_id within your scope to see that space's trail.")
-        rows = _audit.tail(limit=limit, user_id=user_id or None)
+        # Rows are confined to the caller's tenant; only the operator's unfiltered view spans them all.
+        everyone = not user_id and _is_operator(_current_principal())
+        rows = _audit.tail(limit=limit, user_id=user_id or None, all_tenants=everyone)
         if not rows:
             return "No audit entries."
         return "\n".join(
-            f"{r['ts']}  {r['action']:<18} user={r['user_id']}"
+            f"{r['ts']}  {r['action']:<18} "
+            + (f"tenant={r['tenant']} " if everyone and r['tenant'] != "default" else "")
+            + f"user={r['user_id']}"
             + (f"/{r['agent_id']}" if r['agent_id'] else "") + f"  {r['detail']}" for r in rows)
     return _guard("audit_log", go, cap=C.VERIFY, space=user_id or None)
 
@@ -975,6 +1007,12 @@ def stats() -> str:
     per-tool call counts, average latency and error counts, plus the distribution of
     reconciliation actions the engine has taken (SUPERSEDE / RETRACT / FLAG / SKIP / ADD / …)."""
     def go():
+        # Metrics are deployment-wide counters with no tenant: a caller in any other tenant (a
+        # customer org on a shared deployment) would be reading every tenant's activity.
+        caller = _current_principal()
+        if caller.tenant != "default":
+            return _deny("stats", f"caller in tenant '{caller.tenant}' asked for deployment-wide stats",
+                         "Access denied: stats are deployment-wide; ask the deployment operator.")
         snap = _metrics.snapshot()
         errors = _metrics.recent_errors(5)
         tools, actions = snap["tools"], snap["actions"]
@@ -995,8 +1033,9 @@ def stats() -> str:
             lines.append("")
             lines.append("Recent errors (most recent first):")
             # Error text can embed memory content from ANY tenant, and metrics are deployment-wide —
-            # every role holds VERIFY, so only an admin may read the text.
-            if _current_principal().can(C.ADMIN):
+            # every role holds VERIFY, so only an admin (of the default tenant, per the check above:
+            # the deployment operator) may read the text.
+            if caller.can(C.ADMIN):
                 lines += [f"  {e['tool']}: {e['type']}: {e['msg']}" for e in errors]
             else:
                 lines += [f"  {e['tool']}: {e['type']}" for e in errors]
