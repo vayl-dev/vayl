@@ -1,122 +1,180 @@
 ---
 description: >-
   Build a support agent that remembers each customer's current plan,
-  preferences, and issues — isolated per customer, always answering with what's
-  true now.
+  preferences and issues, isolated per customer, and answers with what's true
+  now.
 icon: headset
 ---
 
 # Tutorial: a customer-support assistant
 
-A different domain from the hospital assistant, and a different set of Vayl strengths. There's no life-safety gating here — instead the stars are **per-customer isolation**, keeping facts **current** across many conversations, and resolving **conflicting sources** (what the customer says vs. what your billing system knows) without silently losing either.
+By the end of this tutorial you'll have a support assistant on a shared `vayl-server` that keeps each customer's plan, preferences and open issues current, isolated from every other customer, and that settles disagreements between the customer and your billing system by rule instead of by accident. There's no life-safety gating here. The features doing the work are per-customer isolation, reconciliation across many conversations, and source-aware conflict resolution.
 
-## What we're building
+## How to read the outputs
 
-A support assistant that, for each customer, remembers their current plan, preferences, and open issues — and answers with what's true **now**, never a stale value from three tickets ago. It runs on a shared team server, and each customer's memory is completely isolated from the next.
+`remember`, `forget`, `list_memories`, `set_reconcile_policy` and `create_principal` outputs below are the exact strings Vayl returns. The subject (`plan`, `open_issue`) is named by the model, so yours may differ unless you declare slots, for example with `VAYL_SLOT_SCHEMA=preset:support`. Recall answers are written by the model and shown as representative examples.
 
-## Step 1 — connect to the team server
+## Step 1: connect to the team server
 
-Support is a team setting, so we run `vayl-server` and connect over HTTP with an API key (see Calling Vayl from code). We pass the customer id per call as the `user_id`:
+Support is a team setting, so the assistant talks to `vayl-server` over HTTP with its own API key (see [Deploying vayl-server](deploying-vayl-server.md)). We use the Python client from [Calling Vayl from code](../getting-started/calling-vayl-from-code.md) and pass the customer id as `user_id` on each call:
 
 ```python
-import asyncio
-from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from vayl import Vayl
 
 URL = "https://memory.acme.com/mcp"
-KEY = "vayl_sk_…"   # the support bot's key
+BOT_KEY = "vayl_sk_…"     # the support bot's key: role "agent"
 
-async def main():
-    headers = {"Authorization": f"Bearer {KEY}"}
-    async with streamablehttp_client(URL, headers=headers) as (r, w, _), ClientSession(r, w) as s:
-        await s.initialize()
-
-        async def call(tool, customer, **args):
-            res = await s.call_tool(tool, {"user_id": customer, **args})
-            return res.content[0].text
-
-        # … steps below …
-
-asyncio.run(main())
+bot = Vayl(url=URL, api_key=BOT_KEY)
 ```
 
-## Step 2 — a memory per customer
-
-Each customer is an isolated [memory space](../core-concepts/memory-spaces.md). Facts for `cust_5521` never mix with `cust_7788` — the same subject (`plan`) is a different slot in each:
+Two steps below need an admin key: setting a reconciliation policy (Step 4) and creating keys (Step 6). The bot's `agent` role can read and write memory but not change configuration, and gets `Access denied: 'set_reconcile_policy' requires the 'admin' capability; your role(s) ['agent'] do not grant it.` if it tries. Keep the admin key out of the bot:
 
 ```python
-await call("remember", "cust_5521", text="On the Pro plan; prefers email over phone")
-await call("remember", "cust_7788", text="On the Free plan")
-
-print(await call("recall", "cust_5521", question="what plan are they on?"))   # -> Pro
-print(await call("recall", "cust_7788", question="what plan are they on?"))   # -> Free
+admin = Vayl(url=URL, api_key="vayl_sk_…")   # an admin key, used only by your setup code
 ```
 
-One deployment, thousands of customers, no cross-talk.
+Call `bot.close()` and `admin.close()` when done, or use each as a context manager.
 
-## Step 3 — keep it current (reconciliation)
+## Step 2: a memory per customer
 
-Weeks later the customer upgrades. You don't append a second plan — Vayl **supersedes** the old one:
+Each customer is an isolated [memory space](../core-concepts/memory-spaces.md). Facts for `cust_5521` never mix with `cust_7788`, and the same subject (`plan`) is a different slot in each:
 
 ```python
-await call("remember", "cust_5521", text="Upgraded to the Enterprise plan")
-print(await call("recall", "cust_5521", question="what plan are they on?"))   # -> Enterprise
+print(bot.remember("On the Pro plan; prefers email over phone", user_id="cust_5521"))
+print(bot.remember("On the Free plan", user_id="cust_7788"))
 ```
 
-Ask an additive memory the same thing after a few changes and it may hand back "Pro" from an old ticket. Vayl keeps exactly one current value, with the rest in history.
-
-## Step 4 — when sources disagree (source authority)
-
-The interesting case: the customer _says_ one thing; your billing system _knows_ another. You don't want to silently trust either — you want the authoritative source to win, and the disagreement flagged for a human. Set a reconciliation policy for the space:
+```
+Stored: [ADD] plan = Pro; [ADD] contact_preference = email
+Stored: [ADD] plan = Free
+```
 
 ```python
-await call("set_reconcile_policy", "cust_5521",
-           mode="AUTHORITY", authority={"billing_system": 10, "customer": 1})
-
-await call("remember", "cust_5521", text="I think I'm still on Pro", source="customer")
-await call("remember", "cust_5521", text="Plan: Enterprise",         source="billing_system")
-
-print(await call("recall", "cust_5521", question="what plan are they on?", explain=True))
-# -> Enterprise (source: billing_system). The customer's "Pro" claim is FLAGGED, not discarded.
+print(bot.recall("what plan are they on?", user_id="cust_5521"))   # e.g. "Pro."   (model-generated)
+print(bot.recall("what plan are they on?", user_id="cust_7788"))   # e.g. "Free."  (model-generated)
 ```
 
-Because `billing_system` outranks `customer`, the current value is what billing says — but the customer's contradicting claim isn't thrown away, it's **flagged** so an agent can follow up on the confusion. `explain=True` shows which source each answer rests on.
+## Step 3: keep it current
+
+Weeks later the customer upgrades. Vayl doesn't append a second plan; it supersedes the old one:
+
+```python
+print(bot.remember("Upgraded to the Enterprise plan", user_id="cust_5521"))
+print(bot.list_memories(user_id="cust_5521"))
+```
+
+```
+Stored: [SUPERSEDE] plan = Enterprise
+• contact_preference = email  (#2)
+• plan = Enterprise  (#3)
+
+— history (superseded / retracted / archived) —
+  ◦ plan = Pro  [SUPERSEDED]
+```
+
+Recall now answers from the one current plan. An append-only memory asked the same question after a few changes may still surface "Pro" from an old ticket; here "Pro" is in history, and a normal recall never uses it.
+
+## Step 4: when sources disagree
+
+The customer says one thing and your billing system knows another. You want the authoritative source to win and the disagreement kept visible for a person, not silently resolved either way. Set a reconciliation policy for the space. This needs the admin key:
+
+```python
+print(admin.set_reconcile_policy(mode="AUTHORITY",
+                                 authority={"billing_system": 10, "customer": 1},
+                                 user_id="cust_9120"))
+```
+
+```
+Reconciliation policy for this space set to AUTHORITY.  authority ranks: {'billing_system': 10, 'customer': 1}
+```
+
+Now tag each write with its `source`. Billing syncs the plan, then the customer contradicts it in chat:
+
+```python
+print(bot.remember("Plan: Enterprise", user_id="cust_9120", source="billing_system"))
+print(bot.remember("I think I'm still on Pro", user_id="cust_9120", source="customer"))
+print(bot.list_memories(user_id="cust_9120"))
+```
+
+```
+Stored: [ADD] plan = Enterprise
+Stored: [FLAG] plan = Pro
+• plan = Enterprise  (#1)
+⚠ plan = Pro  (#2, flagged — needs confirmation)
+```
+
+`billing_system` outranks `customer`, so the current value stays what billing says. The customer's claim isn't thrown away: it's flagged, so an agent can follow up on the confusion. `recall(..., explain=True)` shows which source the answer rests on:
+
+```python
+print(bot.recall("what plan are they on?", user_id="cust_9120", explain=True))
+```
+
+```
+Enterprise.
+
+Based on these facts:
+  • #1 plan = Enterprise  [conf 0.95, from billing_system]
+```
+
+The first line is the model's answer; the `Based on these facts:` block is Vayl's provenance, and its confidence comes from the model's extraction.
 
 {% hint style="info" %}
-The three policies: `RECENCY` (newest wins), `AUTHORITY` (higher-ranked source wins, lower is flagged), `REVIEW` (every cross-source conflict is flagged for a human). Choose per space.
+Set the policy before the first write, and tag every write with a `source`. Ranks apply to the source of the fact already stored: a fact written with no source has rank 0, so any ranked source overrides it. A source correcting its own earlier fact always supersedes.
 {% endhint %}
 
-## Step 5 — resolve and forget
+The three policies, chosen per space:
 
-When an issue is resolved or the customer opts out, retract it — it stops surfacing but stays in history for audit:
+| Mode | Cross-source conflict resolves by |
+| --- | --- |
+| `RECENCY` (default) | the newer assertion wins |
+| `AUTHORITY` | the higher-ranked source wins; a lower-ranked contradiction is flagged |
+| `REVIEW` | every cross-source conflict is flagged for a person |
+
+`get_reconcile_policy(user_id=…)` shows the current setting.
+
+## Step 5: resolve an issue
+
+When an issue is resolved, retract it. It stops being current but stays in history for audit:
 
 ```python
-await call("remember", "cust_5521", text="Open issue: billing double-charge")
+print(bot.remember("Open issue: billing double-charge", user_id="cust_5521"))
 # … later …
-await call("forget", "cust_5521", text="The billing issue is resolved")
-print(await call("recall", "cust_5521", question="any open issues?"))   # -> none current
+print(bot.forget("The billing issue is resolved", user_id="cust_5521"))
 ```
 
-## Step 6 — isolate customer-facing keys
+```
+Stored: [ADD] open_issue = billing double-charge
+Retracted (retained in history for audit): open_issue = billing double-charge
+```
 
-The internal support bot above may serve every customer. But if you expose a **per-customer** widget or portal, give that integration a key **scoped** to just that customer, so a bug or a leaked token can't read another tenant's memory:
+To erase a customer's data rather than retire it (a GDPR request), use `delete` or `delete_all`; see [Compliance & GDPR](../mcp-tools/compliance-gdpr.md).
+
+## Step 6: isolate customer-facing keys
+
+The internal bot above serves every customer. If you expose a per-customer widget or portal, give that integration a key scoped to just that customer, so a bug or a leaked token can't read another customer's memory. Creating keys needs the admin key:
 
 ```python
-create_principal("portal-cust_5521", role="agent", scopes="cust_5521")
+print(admin.create_principal(name="portal-cust_5521", role="agent", scopes="cust_5521"))
 ```
 
-A scoped key that passes any other `user_id` is denied, and the denial is audited. See [Authentication & access](../core-concepts/authentication-and-access.md).
+```
+Created principal prin_9a45cd8ac82e 'portal-cust_5521' (role: agent, kind: agent, tenant: default).
+  API key (shown once — save it now):
+  vayl_sk_…
+```
+
+A scoped key that passes any other `user_id` gets `Access denied: 'recall' targets a memory space outside your assigned scope.`, and the denial is audited. For separate organizations on one deployment, also give each its own `tenant`. See [Authentication & access](../core-concepts/authentication-and-access.md).
 
 ## What you leaned on
 
-| Requirement                        | Vayl feature                                                   |
-| ---------------------------------- | -------------------------------------------------------------- |
-| each customer's memory isolated    | [memory spaces](../core-concepts/memory-spaces.md) (`user_id`) |
-| always the current plan/preference | reconciliation (supersede on write)                            |
-| customer vs. system disagreements  | `set_reconcile_policy` (AUTHORITY / REVIEW) + `source`         |
-| why the agent believes X           | `recall(explain=True)` provenance                              |
-| safe multi-tenant exposure         | **scoped** API keys                                            |
+| Requirement | Vayl feature |
+| --- | --- |
+| each customer's memory isolated | [memory spaces](../core-concepts/memory-spaces.md) (`user_id`) |
+| always the current plan and preference | reconciliation (supersede on write) |
+| customer vs. system disagreements | `set_reconcile_policy` (AUTHORITY / REVIEW) + `source` |
+| why the agent believes X | `recall(explain=True)` provenance |
+| safe multi-customer exposure | scoped API keys |
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-hospital" style="color:$primary;">:hospital:</i> Tutorial: a hospital medication assistant</h4></td><td>The higher-stakes example — critical facts and approval gates.</td><td><a href="tutorial-a-hospital-medication-assistant.md">tutorial-a-hospital-medication-assistant.md</a></td></tr><tr><td><h4><i class="fa-sitemap" style="color:$primary;">:sitemap:</i> Memory spaces</h4></td><td>The per-customer isolation model in depth.</td><td><a href="../core-concepts/memory-spaces.md">memory-spaces.md</a></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Scoping keys so a tenant can only see its own memory.</td><td><a href="../core-concepts/authentication-and-access.md">authentication-and-access.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-hospital" style="color:$primary;">:hospital:</i> Tutorial: a hospital medication assistant</h4></td><td>The higher-stakes example: critical facts and approval gates.</td><td><a href="tutorial-a-hospital-medication-assistant.md">tutorial-a-hospital-medication-assistant.md</a></td></tr><tr><td><h4><i class="fa-sitemap" style="color:$primary;">:sitemap:</i> Memory spaces</h4></td><td>The per-customer isolation model in depth.</td><td><a href="../core-concepts/memory-spaces.md">memory-spaces.md</a></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Roles, scopes and tenants for a shared deployment.</td><td><a href="../core-concepts/authentication-and-access.md">authentication-and-access.md</a></td></tr></tbody></table>

@@ -1,32 +1,54 @@
 ---
 description: >-
-  The MCP clients, agent frameworks, models, and storage backends Vayl works
-  with.
+  Connect Vayl to your coding agent, agent framework, or own code, over local
+  stdio or a shared HTTP server.
 icon: puzzle-piece
 ---
 
 # Integrations
 
-Vayl is a standard **Model Context Protocol** server, so it drops into any MCP client and talks to any OpenAI-compatible model. Point it at the clients, frameworks, and models you already use — no lock-in.
+Vayl is a standard Model Context Protocol (MCP) server, so any MCP client can use it, and it talks to any OpenAI-compatible model. It ships two transports:
 
-## MCP clients
+| Transport | Command | Who it is for | Auth |
+| --- | --- | --- | --- |
+| stdio | `vayl-mcp` | One person on one machine. The client starts the process. | Runs as local admin unless `VAYL_AUTH_REQUIRED` is on |
+| Streamable HTTP | `vayl-server` | A team sharing one memory at `https://your-host/mcp` | Always required: `Authorization: Bearer vayl_sk_...` |
 
-Any MCP-capable agent can call Vayl's tools. Add the server to your client's configuration (see [Quickstart](../getting-started/quickstart.md)) and restart.
+Both expose the same tools. Pick the page for the tool you already use.
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-robot" style="color:$primary;">:robot:</i> Claude Desktop</h4></td><td>Add Vayl under <code>mcpServers</code> and restart the app.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-i-cursor" style="color:$primary;">:i-cursor:</i> Cursor</h4></td><td>Step-by-step: MCP config (OpenAI or local Ollama), a rule, and per-project memory.</td><td><a href="cursor.md">cursor.md</a></td></tr><tr><td><h4><i class="fa-terminal" style="color:$primary;">:terminal:</i> Claude Code</h4></td><td>Add Vayl with <code>claude mcp add</code> and it's available in-session.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-plug" style="color:$primary;">:plug:</i> Any MCP client</h4></td><td>Vayl speaks stdio and streamable-HTTP — any compliant client works.</td><td><a href="../mcp-tools/the-mcp-interface.md">the-mcp-interface.md</a></td></tr></tbody></table>
+## Coding agents and clients
 
-## Agent frameworks
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-terminal" style="color:$primary;">:terminal:</i> Claude Code</h4></td><td>Add Vayl with <code>claude mcp add</code>, locally or against a team server, plus a CLAUDE.md snippet.</td><td><a href="claude-code.md">claude-code.md</a></td></tr><tr><td><h4><i class="fa-i-cursor" style="color:$primary;">:i-cursor:</i> Cursor</h4></td><td>MCP config for OpenAI or local Ollama, a project rule, and per-project memory.</td><td><a href="cursor.md">cursor.md</a></td></tr><tr><td><h4><i class="fa-plug" style="color:$primary;">:plug:</i> Any MCP client</h4></td><td>Claude Desktop, Windsurf, Zed and others: the tool list and how the protocol maps to Vayl.</td><td><a href="../mcp-tools/the-mcp-interface.md">the-mcp-interface.md</a></td></tr></tbody></table>
 
-Building on an agent framework instead? Add Vayl's reconciling memory as tools your agent calls — the same `remember` / `recall` surface across all of them. Full setup on the [Agent frameworks](agent-frameworks.md) page.
+## Agent frameworks and your own code
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-diagram-project" style="color:$primary;">:diagram-project:</i> LangGraph / LangChain</h4></td><td>Bind Vayl's tools to a LangChain <code>create_agent</code>.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-robot" style="color:$primary;">:robot:</i> OpenAI Agents SDK</h4></td><td>Reconciling memory as function tools the agent calls.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-people-group" style="color:$primary;">:people-group:</i> CrewAI</h4></td><td>Give any crew agent memory that stays current.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-bolt" style="color:$primary;">:bolt:</i> Vercel AI SDK</h4></td><td><code>vaylTools(m)</code> for <code>generateText</code> / <code>streamText</code>.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-layer-group" style="color:$primary;">:layer-group:</i> Mastra</h4></td><td>Memory tools for a Mastra <code>Agent</code>.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-diagram-project" style="color:$primary;">:diagram-project:</i> Agent frameworks</h4></td><td>Memory tools for LangGraph, the OpenAI Agents SDK, CrewAI, the Vercel AI SDK and Mastra.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-code" style="color:$primary;">:code:</i> Calling Vayl from code</h4></td><td>The Python and TypeScript clients: call <code>remember</code> and <code>recall</code> as methods.</td><td><a href="../getting-started/calling-vayl-from-code.md">calling-vayl-from-code.md</a></td></tr></tbody></table>
 
-## Models & embedders
+## Shared team memory
 
-Vayl needs one model to extract facts and one embedder for retrieval — any **OpenAI-compatible** endpoint. Set them in [Configuration](../reference/configuration.md).
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-server" style="color:$primary;">:server:</i> Deploying vayl-server</h4></td><td>Run the authenticated HTTP server with Docker or Postgres and issue API keys to your team.</td><td><a href="../guides/deploying-vayl-server.md">deploying-vayl-server.md</a></td></tr></tbody></table>
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-brain" style="color:$primary;">:brain:</i> OpenAI</h4></td><td>Set <code>OPENAI_API_KEY</code>; <code>gpt-5-mini</code> is the default.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr><tr><td><h4><i class="fa-house-laptop" style="color:$primary;">:house-laptop:</i> Ollama (local)</h4></td><td>Point <code>OPENAI_BASE_URL</code> at Ollama — nothing leaves the machine.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr><tr><td><h4><i class="fa-microchip" style="color:$primary;">:microchip:</i> vLLM / LM Studio</h4></td><td>Any local OpenAI-compatible server works the same way.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr><tr><td><h4><i class="fa-network-wired" style="color:$primary;">:network-wired:</i> Any OpenAI-compatible</h4></td><td>Self-hosted or EU-region endpoints for data residency.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr></tbody></table>
+## Models and embedders
+
+Vayl needs a chat model to extract and reconcile facts, and an embedder for retrieval. Both use any OpenAI-compatible endpoint.
+
+| Setup | What to set | Result |
+| --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | Chat `gpt-5-mini`, embeddings `text-embedding-3-small` |
+| Local Ollama | Nothing, or `OPENAI_BASE_URL=http://localhost:11434/v1` | Chat `qwen2.5:3b`, embeddings `nomic-embed-text`. Nothing leaves the machine. |
+| vLLM, LM Studio, other OpenAI-compatible | `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `EMBED_MODEL` if the server has no `nomic-embed-text` | Your endpoint for both |
+| Anthropic or Groq for chat | `ANTHROPIC_API_KEY` or `GROQ_API_KEY` (or `LLM_PROVIDER`) | Chat on that provider; embeddings still need an OpenAI-compatible endpoint |
+
+See [Local models with Ollama](../guides/local-models-with-ollama.md) and [Configuration](../reference/configuration.md) for every variable.
 
 ## Storage
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-database" style="color:$primary;">:database:</i> SQLite</h4></td><td>The default — one file, zero setup, nothing to operate.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr><tr><td><h4><i class="fa-server" style="color:$primary;">:server:</i> Postgres</h4></td><td>Set <code>VAYL_DATABASE_URL</code> for concurrent, multi-writer scale.</td><td><a href="../guides/deploying-vayl-server.md">deploying-vayl-server.md</a></td></tr><tr><td><h4><i class="fa-diagram-project" style="color:$primary;">:diagram-project:</i> Neo4j graph</h4></td><td>Optional projection for deep multi-hop relational queries.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr></tbody></table>
+| Backend | Set | Use it for |
+| --- | --- | --- |
+| SQLite (default) | `VAYL_DB=/abs/path/vayl.db` | One user, or a small server. One file, nothing to operate. |
+| Postgres | `VAYL_DATABASE_URL=postgresql://...` and `pip install 'vayl-mcp[postgres]'` | Several server processes writing to one store |
+| Neo4j graph projection (optional) | `VAYL_GRAPH=on` and `NEO4J_*`, `pip install 'vayl-mcp[graph]'` | Multi-hop relational queries on top of the main store |
+
+## Next steps
+
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-rocket" style="color:$primary;">:rocket:</i> Quickstart</h4></td><td>Install Vayl, connect a client, and store your first fact.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-terminal" style="color:$primary;">:terminal:</i> Claude Code</h4></td><td>Local or team memory for Claude Code in two commands.</td><td><a href="claude-code.md">claude-code.md</a></td></tr><tr><td><h4><i class="fa-sliders" style="color:$primary;">:sliders:</i> Configuration</h4></td><td>Every environment variable, default, and accepted value.</td><td><a href="../reference/configuration.md">configuration.md</a></td></tr></tbody></table>

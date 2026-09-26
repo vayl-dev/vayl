@@ -1,97 +1,215 @@
 ---
 description: >-
-  Reconciliation, the same-slot invariant, events vs. state, and history — the
-  ideas that make memory tell you what's true now.
+  The nine reconcile actions, the four fact statuses, the same-slot invariant,
+  events vs. state, declared slots, source policy, and history.
 icon: book
 ---
 
-# Core concepts
+# Reconciliation
 
-Vayl exists to answer one question reliably: **what is true right now?** Additive memory can't, because it keeps every fact it has ever seen and lets similarity search decide which surfaces — so a value you explicitly changed can come back as if it were current. Vayl reconciles instead: on every write it decides how a new fact relates to what it already knows, keeps exactly one active value per thing, and preserves the history off to the side.
-
-This page explains the model end to end.
+On every write, Vayl decides how each new fact relates to what the space already holds and applies exactly one of nine actions, so a read has a single current value per slot to return. This page covers each action and when it fires, the statuses a fact can hold, and the rules the engine enforces in code.
 
 ## Facts
 
-Every message your agent sends to `remember` is turned into one or more **facts** by a single LLM call. A fact is structured:
+`remember` sends the message to one LLM extraction call, which returns zero or more facts:
 
-| Field        | Meaning                                                                  |
-| ------------ | ------------------------------------------------------------------------ |
-| `subject`    | what the fact is about (`active_medication`, `plan`, `primary_database`) |
-| `value`      | the value itself (`warfarin 5mg`, `Free`, `Postgres`)                    |
-| `scope`      | the space and qualifier the fact lives in                                |
-| `kind`       | `state` (holds until replaced) or `event` (happened once)                |
-| `confidence` | how sure the extractor is                                                |
-| `source`     | who or what asserted it — an agent, a person, a connector                |
+| Field | Meaning |
+| --- | --- |
+| `subject` | What the fact is about, in snake\_case (`state`, `plan`, `active_medication`). The model picks the name unless a [declared slot](#declared-slots-and-presets) fixes it. |
+| `value` | The value itself (`Zustand`, `Free`, `Warfarin 5mg`). |
+| `scope` | A qualifier inside the space: `global` by default, or `web`, `mobile`, `backend`… |
+| `kind` | `state` (holds until replaced) or `event` (happened once). |
+| `time_ref` | `current`, `past`, `future` or `unknown`. Drives the valid-time gate. |
+| `action` | The model's proposed action. The engine can override it. |
+| `confidence` | 0.0–1.0. Below 0.7, a change is flagged instead of applied. |
 
-One message can produce several facts — _"We moved from AWS to GCP and dropped Sentry"_ becomes a supersede **and** a retract.
+Vayl also records the `source` you pass to `remember`, the original sentence (`raw`), and any `metadata`. One message can carry several facts. _"We moved to Postgres and dropped Redis"_ produces a supersede and a retract.
 
-## Reconciliation: the five actions
+## Statuses
 
-For each new fact, Vayl compares it against what's stored in the same slot and takes exactly one action.
+Every stored fact has exactly one of four statuses:
 
-### Supersede
+| Status | Meaning | On the hot path? |
+| --- | --- | --- |
+| `ACTIVE` | The current value. What `recall` answers from. | Yes |
+| `FLAGGED_CONFLICT` | Held for a person: an ambiguous conflict, a low-confidence change, a future-tense statement, a policy block, or a pending confirm-gate proposal. Never presented as current. | Yes |
+| `SUPERSEDED` | A former value, retired by a newer one or by a retraction. | No |
+| `HISTORICAL` | A recorded past fact, a retraction tombstone, or a rejected proposal. Never current. | No |
 
-A new value for something already known. The old value is **retired to history** and the new one becomes active.
+There is no "retracted" status. A retraction marks the fact `SUPERSEDED` and writes a `HISTORICAL` tombstone whose value is `(retracted: <old value>)`.
 
-> "The customer is on Pro." … later … "They moved to Free." → `plan` is now **Free**; **Pro** is in history.
+## The nine actions
 
-### Retract
+The model proposes an action. `_apply` in `memory/llm_memory.py` makes the final decision, and the result of `remember` shows it: `Stored: [<ACTION>] <subject> = <value>`.
 
-An explicit removal. A **tombstone** retires the fact; a recall for the current value returns nothing (or "I don't know"), never the stale value.
+| Action | Effect | When it fires |
+| --- | --- | --- |
+| `ADD` | New `ACTIVE` fact. | A new slot with no competing value, a new item on a list slot, or an event. |
+| `SUPERSEDE` | Old fact becomes `SUPERSEDED`, new fact `ACTIVE`. | A new value for a slot that already holds a different one. This includes an `ADD` the model mislabelled (see the [same-slot invariant](#the-same-slot-invariant)). |
+| `RETRACT` | Old fact becomes `SUPERSEDED`, plus a `HISTORICAL` tombstone. The slot is left empty. | A removal with no replacement: "we dropped Sentry". Also every `forget` call. |
+| `REFINE` | Updates the targeted fact's value in place. | Same fact, more detail. |
+| `DEDUP` | Nothing stored. | The same value is already active in the same slot and scope, a past fact is already archived, a proposal is already pending, or the [dedup prefilter](#dedup-prefilter) matched. |
+| `COEXIST` | New `ACTIVE` fact beside the existing one. | Same subject, different **scope**: `state = Zustand` for `web`, `state = MobX` for `mobile`. |
+| `FLAG` | New fact stored as `FLAGGED_CONFLICT`. The current value stands. | See [When a fact is flagged](#when-a-fact-is-flagged). |
+| `SKIP` | Nothing stored. | Hypotheticals, questions and sarcasm ("maybe we should try Jotai?"), or a retraction that matches nothing. |
+| `ARCHIVE` | New fact stored as `HISTORICAL`. Never active. | The statement describes a former state: "historically we billed monthly", "we used to use MySQL". |
 
-> "We dropped Sentry." → `monitoring = Sentry` is retracted.
+Real results from `remember`:
 
-### Flag
+```
+Stored: [ADD] state = Redux
+Stored: [SUPERSEDE] state = Zustand
+Stored: [ARCHIVE] billing = monthly
+Stored: [FLAG] primary_database = Postgres
+Stored: [SKIP] state = Jotai
+No durable fact found (looked like chatter or a question).
+```
 
-The new fact conflicts with an existing one and the resolution is ambiguous. Vayl **does not guess** — it flags the conflict for a human, and a flagged value never presents itself as current.
+The last line is what you get when extraction returns no facts at all, for example for a greeting.
 
-> Two different allergies asserted for the same patient → flagged for review.
+### When a fact is flagged
 
-### Coexist
+A fact is stored as `FLAGGED_CONFLICT` when any of these apply:
 
-Both facts are independently true and don't compete for the same slot.
+* **Ambiguity.** The model reports two state values for the same slot with nothing saying which is newer.
+* **Low confidence.** A `SUPERSEDE`, `COEXIST`, `REFINE` or `RETRACT` has confidence below 0.7. For a retraction, the target stays active and a flagged copy is added.
+* **Future tense.** A `SUPERSEDE`, `COEXIST` or `ADD` whose `time_ref` is `future` ("we will move to Postgres") isn't true yet.
+* **Confirmation gate.** A change to a declared `confirm` slot. The proposal waits in `pending_changes` until someone with the `approve` capability calls `confirm_change` or `reject_change`. See [Safety gates and human approval](../guides/safety-gates-and-human-approval.md).
+* **Source policy.** A `REVIEW` or `AUTHORITY` [reconcile policy](#source-aware-reconciliation) blocks the overwrite.
 
-> "The patient takes metformin" and "the patient takes lisinopril" → both active.
+When the model gave a reason, it is kept in the fact's metadata for the reviewer. `list_memories` shows flagged facts with a `⚠` marker.
 
-### Dedup
+### Rules the engine applies in code
 
-The fact is already known. Nothing changes — no duplicate row, no churn.
+These checks run in `_apply` whatever the model proposed:
 
-{% hint style="info" %}
-Which action fires is decided by the **engine**, using the extracted intent plus the same-slot rule below — not left entirely to the model. A weak model that mislabels a change still cannot leave two contradictory values live.
-{% endhint %}
+1. **Events never replace anything.** A `SUPERSEDE`, `REFINE` or `RETRACT` on an event becomes `ADD`.
+2. **Valid-time gate.** A fact with `time_ref = past` is archived as `HISTORICAL` (`ARCHIVE`) and never retires the current value. Retractions are exempt: "Datadog is gone" still retires Datadog.
+3. **Retract upgrade.** Definite removal language ("dropped", "no longer", "removed", "discontinued"…), with no hedge or sarcasm marker, turns a mislabelled `ADD`/`SUPERSEDE` into `RETRACT`. This only happens when the extracted value matches the active value in that slot.
+4. **Restatement.** The same value in the same slot and scope becomes `DEDUP`.
+5. **Confirmation gate**, then the **confidence threshold**, then the **same-slot invariant** with the source policy.
+
+A `RETRACT` with no matching active fact becomes `SKIP`. `forget` reports that as `Nothing matching to retract (that fact isn't currently stored).`
+
+### Dedup prefilter
+
+If the exact message (case-folded, whitespace-collapsed) already produced facts and all of them are still `ACTIVE`, `remember` returns `DEDUP` without calling the model. If any of those facts has since changed, the message is extracted normally. Turn it off with `VAYL_DEDUP_PREFILTER=off`.
 
 ## The same-slot invariant
 
-A **slot** is a fact's `(subject, scope)`. The invariant Vayl guarantees:
+A **slot** is a fact's `(subject, scope)` within one memory space. For single-valued state, Vayl keeps **at most one active value per slot**.
 
-> **At most one active value per slot.**
+This is enforced deterministically. When a new `ADD`, `SUPERSEDE` or `REFINE` lands on a slot that already holds a different active value, the old value is retired even if the model didn't link them. A weak model that labels "we use Postgres now" as `ADD` still can't leave MySQL active beside it:
 
-This is the load-bearing idea. Because it is enforced structurally, "which value is current?" is always answerable from a single row, and reconciliation quality stops tracking model strength — even a small model can't produce two live contradictory values, because the engine won't store them.
+```
+Stored: [ADD] db = MySQL
+Stored: [SUPERSEDE] db = Postgres
+```
+
+Several active values can share a subject only in these cases:
+
+* **Different scope** (`COEXIST`). Different scopes are different slots.
+* **Declared list slots** (`"multi": true`), such as allergies or active medications. A new item joins the list. A `SUPERSEDE` replaces the matching item by identity (the drug or substance name before any dose), and a retract removes only the item it names.
+* **Events.** Two races are two races. The exception is a declared single-valued slot that already holds a different value: there, an incoming "event" is treated as a state change and supersedes.
+
+{% hint style="warning" %}
+**Known gap (0.6.0):** if the extraction model labels a fact `COEXIST` but gives it the **same** scope as an existing value, both values stay active. The invariant check covers `ADD`, `SUPERSEDE` and `REFINE` but trusts `COEXIST`. Declared slots make the model far less likely to hit this, and `list_memories` shows it when it happens.
+{% endhint %}
 
 ## Events vs. state
 
-Not everything should be reconciled. Facts carry a `kind`:
+The extractor sets `kind` on every fact:
 
-* **State** holds until something replaces it — `we use Postgres`, `the plan is Free`. State obeys the same-slot invariant.
-* **Events** happened at a point in time — `ran a charity race`, `the customer called on Tuesday`. Two events are two events, not a correction, so events **coexist** and never supersede each other.
+* **State** holds until something replaces it: "we use Postgres", "the plan is Free". State obeys the same-slot invariant.
+* **Events** happened at a point in time: "ran a charity race", "the customer called on Tuesday". Events are never superseded, refined or retracted by reconciliation.
 
-The exemption is enforced in the engine: a mislabelled supersede on an event is downgraded, so neither a confused model nor a later state fact sharing a subject can delete the record that something happened. Untagged facts default to state.
+Vayl stores the kind in the fact's metadata (`{"kind": "event"}`). Facts with no kind default to state.
 
-## History and the hot path
+## Declared slots and presets
 
-Vayl is event-sourced: superseded and retracted facts are **retired, not deleted** — but they move off the **hot path**.
+By default the model names subjects freely. That works for open-ended memory, but two statements about the same thing only reconcile if they land on the same subject. A **slot schema** fixes the names for the fields you care about.
 
-* A normal `recall` (and the internal `load`) reads only the **active + flagged** set. Retired facts are never loaded, so a stale value **cannot** be returned as current, no matter how the model behaves. This is a structural property, not a prompt instruction.
-* History lives on disk and is read **lazily** — only when you ask about the past with `recall(..., include_history=True)` or `history(subject)`.
+Set `VAYL_SLOT_SCHEMA` to a JSON file path, or to a built-in preset:
 
-The separation also keeps Vayl fast as memory grows: per-operation cost is **O(active facts)**, not O(total history).
+```bash
+VAYL_SLOT_SCHEMA=preset:coding          # or a path: /etc/vayl/slots.json
+```
+
+Built-in presets (in `src/vayl/presets/`): `assistant`, `clinical`, `coding`, `finance`, `sales`, `support`.
+
+Each slot entry supports:
+
+| Field | Effect |
+| --- | --- |
+| `name` | The canonical subject. |
+| `aliases` | Other names that fold onto it. Matching is spelling-tolerant (case, spaces, hyphens), not semantic. |
+| `description` | Shown to the extractor. |
+| `category` | Stamped on every fact in the slot. Feeds the critical-fact channel (`VAYL_CRITICAL_CATEGORIES`). |
+| `multi` | The slot holds a list. New values join it instead of superseding. |
+| `confirm` | Replacements and removals become pending proposals that need human approval. |
+| `verbatim` | Tells the extractor to copy the value exactly (for doses and versions). This is a prompt instruction, not a code check. |
+
+```json
+{"slots": [
+  {"name": "allergy", "category": "critical", "multi": true,
+   "aliases": ["allergies", "drug_allergy"]},
+  {"name": "active_medication", "category": "critical", "multi": true,
+   "confirm": true, "verbatim": true}
+]}
+```
+
+A trusted source listed in `VAYL_TRUSTED_SOURCES` (for example `fhir`) bypasses the confirmation gate. Only a key whose principal name equals that source, or a caller with the `approve` capability, may write with that `source`. Anyone else gets `Access denied`.
+
+## Source-aware reconciliation
+
+Pass `source` to `remember` to record who asserted a fact. In a space several contributors write to, an admin can set how cross-source conflicts resolve with `set_reconcile_policy` (requires `admin`). Anyone with `read` can view it with `get_reconcile_policy`.
+
+| Mode | A new fact from source B contradicts A's active fact |
+| --- | --- |
+| `RECENCY` (default) | B supersedes A. |
+| `AUTHORITY` | B supersedes only if its rank in `authority` is strictly higher than A's. Otherwise B is flagged and A stands. Unlisted sources rank 0. |
+| `REVIEW` | Always flagged for a person. |
+
+A source correcting its own earlier fact always supersedes. The policy also applies to a cross-source `REFINE` that changes the value.
+
+```
+set_reconcile_policy("AUTHORITY", {"crm": 2, "bot": 1}, user_id="org")
+→ Reconciliation policy for this space set to AUTHORITY.  authority ranks: {'crm': 2, 'bot': 1}
+
+remember("…plan is Pro", user_id="org", source="crm")   → Stored: [ADD] plan = Pro
+remember("…plan is Free", user_id="org", source="bot")  → Stored: [FLAG] plan = Free
+```
 
 ## Provenance
 
-Every active fact records its `source` and `confidence`, and a supersede records what it replaced. `recall(explain=True)` returns that provenance — the exact facts behind an answer, who asserted each, and what it superseded. It is the truthful basis for auditing _why_ the agent believes what it does, and it is what `record_decision` snapshots.
+`recall(..., explain=True)` returns the answer followed by the exact facts placed in the model's context:
+
+```
+You use Zustand.
+
+Based on these facts:
+  • #2 state = Zustand  [conf 0.95, from crm, supersedes #1]
+  • #3 db = MySQL  [conf 0.95]
+```
+
+The first line is model-written. The fact list is deterministic: id, subject, value, confidence, source when set, and the id it superseded. `record_decision` snapshots the same set.
+
+## History and tombstones
+
+Nothing is deleted by reconciliation. Superseded values, archived past facts, retraction tombstones and rejected proposals stay in the database but off the hot path.
+
+* Ordinary `recall`, `check_before_act` and every write load only `ACTIVE` and `FLAGGED_CONFLICT` rows. A retired value can't be returned as current, because it is never loaded.
+* `history(subject)` shows the full timeline for one subject:
+
+  ```
+  History for 'monitoring' (oldest → newest):
+    1. Sentry  [SUPERSEDED]
+    2. (retracted: Sentry)  [HISTORICAL]
+  ```
+* `recall(..., include_history=True)` adds retired facts to the ranking pool, tagged `(history)`, for questions about the past.
+* `list_memories` shows active facts, flagged facts, and the 20 most recent retired rows.
+* Only `delete`, `delete_all` and `purge_expired` remove rows permanently. See [Compliance (GDPR)](../mcp-tools/compliance-gdpr.md).
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-sitemap" style="color:$primary;">:sitemap:</i> Memory spaces</h4></td><td>How facts are isolated per user, agent, and run.</td><td><a href="memory-spaces.md">memory-spaces.md</a></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Who may touch which space.</td><td><a href="authentication-and-access.md">authentication-and-access.md</a></td></tr><tr><td><h4><i class="fa-toolbox" style="color:$primary;">:toolbox:</i> MCP tools</h4></td><td>The tools that expose all of this.</td><td><a href="../mcp-tools/">mcp-tools</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-sitemap" style="color:$primary;">:sitemap:</i> Memory spaces and tenants</h4></td><td>Where a slot lives: tenant, user, agent and run.</td><td><a href="memory-spaces.md">memory-spaces.md</a></td></tr><tr><td><h4><i class="fa-shield-halved" style="color:$primary;">:shield-halved:</i> Safety gates</h4></td><td>Confirm-gated slots, pending changes and approval.</td><td><a href="../guides/safety-gates-and-human-approval.md">safety-gates-and-human-approval.md</a></td></tr><tr><td><h4><i class="fa-toolbox" style="color:$primary;">:toolbox:</i> Memory tools</h4></td><td>remember, recall, forget, history and the rest.</td><td><a href="../mcp-tools/memory.md">memory.md</a></td></tr></tbody></table>

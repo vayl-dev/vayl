@@ -1,35 +1,37 @@
 ---
 description: >-
-  Vayl is memory for AI agents where a wrong answer has consequences — one live
-  value per fact, real removal, and a provable history.
+  Vayl is memory for AI agents where a wrong answer has consequences: one
+  active value per fact, real removal, and a verifiable history.
 ---
 
 # Memory for AI agents that can't be wrong
 
-**Vayl is memory for AI agents where a wrong answer has consequences.** Most memory layers _accumulate_ — they save every fact and later hand your agent a stale one. Vayl **reconciles**: a new value supersedes the old, "we dropped X" actually removes X, ambiguous input is flagged instead of guessed, and every change lands on a signed, tamper-evident audit trail. It speaks the Model Context Protocol, so any agent — Claude, Cursor, your own — plugs in.
+**Vayl is memory for agents where a stale answer has consequences.** It reconciles on write, so a changed or removed fact is retired instead of left to compete at retrieval time, and it records every change on a signed, hash-chained audit trail. Why appending memory fails is covered once, in [Why your agent's memory returns stale facts](why-your-agents-memory-returns-stale-facts.md). This page lists what Vayl guarantees and where the guarantees stop.
 
-## Why "remembering more" is the wrong goal
+## What Vayl guarantees
 
-An agent doesn't fail because it forgot. It fails because it confidently returned something that _used to be true_. Additive and vector memories keep every version of a fact and let similarity search pick one — so after a few updates, a stale value can rank as "current." The failure is silent: a confident, wrong answer with no signal that it's wrong.
+* **One active value per single-valued fact.** At most one active value per `(subject, scope)`, enforced by the store, not by the prompt. Two exceptions hold several active values on purpose: declared list slots (`multi`) and events. Different scopes of one subject (web vs. mobile) are separate facts.
+* **Removal is real.** `forget("We dropped Sentry")` retires the fact. A normal `recall` does not load retired facts, so it cannot return Sentry as current.
+* **History is kept.** Superseded and retracted values stay queryable through `history` or `recall(..., include_history=True)`. They are never returned by a normal recall.
+* **Changes are verifiable.** The audit trail is hash-chained and Ed25519-signed by default; `verify_audit` detects an edited, reordered, or truncated log. Signing can be turned off with `VAYL_SIGN=off`, and then this guarantee is gone.
 
-## What Vayl guarantees instead
+## What it depends on
 
-* **One live value per fact.** A structural invariant — at most one active value per `(subject, scope)` — so "what's true now" is unambiguous. Even a small model can't leave two contradictory values live; the engine won't store them.
-* **Removal is first-class.** "We dropped Sentry" _retracts_ it. It never comes back as current.
-* **The past is still there.** Superseded facts move to history, queryable on demand — not returned by accident.
-* **Every change is provable.** A hash-chained, Ed25519-signed audit trail; `verify_audit` pinpoints any edit, reorder, or deletion.
+* **Extraction is done by an LLM.** The model turns text into `subject = value` facts and picks the subject name. If it names the same fact two ways, the store sees two facts. [Declared slots](../core-concepts/core-concepts.md) (or a built-in preset such as `VAYL_SLOT_SCHEMA=preset:coding`) fix the names for the fields you care about.
+* **Answers are written by an LLM.** `recall` returns free text generated from the active facts. It can be phrased differently each time; it cannot draw on a retired fact.
 
-| Property                          | Vayl                                                                        |
-| --------------------------------- | --------------------------------------------------------------------------- |
-| Silently-wrong on the messy suite | **0%** _(single-run, author-written — reproduce it yourself)_               |
-| Cost per remembered fact          | **\~2 LLM calls, no graph database**                                        |
-| Storage                           | one **SQLite** file by default; **Postgres** for multi-writer scale         |
-| Runs                              | **locally** — no telemetry; the only outbound call is the LLM you configure |
+## How it runs
+
+| | |
+| --- | --- |
+| Storage | One SQLite file for the local stdio server (`vayl-mcp`). Postgres (`VAYL_DATABASE_URL`) for a shared `vayl-server`. |
+| Outbound calls | The LLM and the embedder you configure. Also HashiCorp Vault, your OIDC provider's JWKS, and Neo4j, only when you enable them. No telemetry. |
+| At rest | Fact content is encrypted by default (`VAYL_ENCRYPT`). The key is a file next to the database unless you set a `VAYL_KEY` passphrase or use Vault. |
 
 ## Not for you if
 
-You need broad document Q\&A over a static corpus (that's RAG), or a knowledge graph for deep multi-hop relationship queries (a dedicated graph reads those faster). Vayl is _reconciling state memory_ — it keeps changing facts current, and composes with those tools rather than replacing them.
+You need Q&A over a static document corpus (that is RAG), or deep multi-hop graph queries as your main workload (a dedicated graph database does that better). Vayl keeps changing facts current and sits alongside those tools.
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-bolt" style="color:$primary;">:bolt:</i> Quickstart</h4></td><td>Store your first reconciled memory in about 5 minutes.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-clock-rotate-left" style="color:$primary;">:clock-rotate-left:</i> Why memory goes stale</h4></td><td>The root cause behind stale answers, and the fix.</td><td><a href="why-your-agents-memory-returns-stale-facts.md">why-your-agents-memory-returns-stale-facts.md</a></td></tr><tr><td><h4><i class="fa-book" style="color:$primary;">:book:</i> Core concepts</h4></td><td>The same-slot invariant and how reconciliation works.</td><td><a href="../core-concepts/core-concepts.md">core-concepts.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-bolt" style="color:$primary;">:bolt:</i> Quickstart</h4></td><td>Install Vayl and store your first reconciled fact.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-shield-halved" style="color:$primary;">:shield-halved:</i> For high-stakes agents</h4></td><td>Human approval, critical facts, and signed decisions.</td><td><a href="auditable-gated-memory-for-high-stakes-ai-agents.md">auditable-gated-memory-for-high-stakes-ai-agents.md</a></td></tr><tr><td><h4><i class="fa-book" style="color:$primary;">:book:</i> Reconciliation</h4></td><td>Actions, statuses, and the same-slot invariant.</td><td><a href="../core-concepts/core-concepts.md">core-concepts.md</a></td></tr></tbody></table>

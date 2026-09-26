@@ -1,32 +1,38 @@
 ---
 description: >-
-  Give Cursor reconciling memory — configure the MCP server (OpenAI or keyless
+  Give Cursor reconciling memory: configure the MCP server (OpenAI or keyless
   local Ollama) and a project rule so the agent keeps your facts current.
+icon: i-cursor
 ---
 
 # Cursor
 
-Vayl gives Cursor a reconciling memory: new facts replace stale ones, explicit retractions are remembered as removals, and history remains queryable. Memory is model-driven in Cursor, so this setup includes both the MCP server and a project rule that tells the agent when to use it.
+Vayl gives Cursor a memory where new facts replace stale ones, explicit retractions are remembered as removals, and history stays queryable. Cursor decides on its own when to call MCP tools, so this setup has two parts: the MCP server, and a project rule that tells the agent when to use it.
 
-## 1. Install Vayl
+{% stepper %}
+{% step %}
+### Install Vayl
 
 ```bash
 pip install vayl-mcp
+vayl-mcp --version
 ```
 
-If you use a virtual environment, make sure Cursor can resolve the `vayl-mcp` executable. An absolute path to the executable is the most reliable option.
+If you installed it in a virtual environment, Cursor may not find `vayl-mcp` on its `PATH`. Use the absolute path from `which vayl-mcp` as the `command` below.
+{% endstep %}
 
-## 2. Configure the MCP server
+{% step %}
+### Configure the MCP server
 
-Put the configuration in either:
+Put the configuration in one of:
 
-* `~/.cursor/mcp.json` to make Vayl available in every project; or
-* `<project>/.cursor/mcp.json` to enable it for one project only.
+* `~/.cursor/mcp.json` to make Vayl available in every project
+* `<project>/.cursor/mcp.json` to enable it for one project
 
-Create the parent directory if it does not exist. Choose one of the following provider configurations.
+Create the directory if it doesn't exist, then pick a provider.
 
-### OpenAI
-
+{% tabs %}
+{% tab title="OpenAI" %}
 ```json
 {
   "mcpServers": {
@@ -35,26 +41,24 @@ Create the parent directory if it does not exist. Choose one of the following pr
       "env": {
         "LLM_PROVIDER": "openai",
         "OPENAI_API_KEY": "sk-...",
-        "OPENAI_MODEL": "gpt-5-mini",
-        "EMBED_BASE_URL": "https://api.openai.com/v1",
-        "EMBED_MODEL": "text-embedding-3-small",
-        "VAYL_DB": "/absolute/path/to/project/.vayl/memory.db"
+        "VAYL_DB": "/absolute/path/to/project/.vayl/memory.db",
+        "VAYL_SLOT_SCHEMA": "preset:coding"
       }
     }
   }
 }
 ```
 
-### Local Ollama
+The key alone is enough. Since 0.6.0, Vayl sends both chat (`gpt-5-mini`) and embeddings (`text-embedding-3-small`) to OpenAI when `OPENAI_API_KEY` is set and no base URL is. Set `OPENAI_MODEL` or `EMBED_MODEL` only to change those defaults.
+{% endtab %}
 
+{% tab title="Local Ollama" %}
 Pull the chat and embedding models before starting Cursor:
 
 ```bash
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
-
-Then use this configuration:
 
 ```json
 {
@@ -65,42 +69,29 @@ Then use this configuration:
         "LLM_PROVIDER": "openai",
         "OPENAI_BASE_URL": "http://localhost:11434/v1",
         "OPENAI_MODEL": "qwen2.5:3b",
-        "EMBED_BASE_URL": "http://localhost:11434/v1",
-        "EMBED_MODEL": "nomic-embed-text",
-        "VAYL_DB": "/absolute/path/to/project/.vayl/memory.db"
+        "VAYL_DB": "/absolute/path/to/project/.vayl/memory.db",
+        "VAYL_SLOT_SCHEMA": "preset:coding"
       }
     }
   }
 }
 ```
 
-Ollama does not need an API key. Vayl recognizes loopback OpenAI-compatible endpoints as local and supplies the placeholder authentication value internally.
+Ollama needs no API key. Embeddings follow `OPENAI_BASE_URL` and default to `nomic-embed-text`. To use other models, see [Local models with Ollama](../guides/local-models-with-ollama.md).
+{% endtab %}
+{% endtabs %}
 
-Restart Cursor after changing `mcp.json`, then check Cursor's MCP settings to confirm that the `vayl` server and its tools are available.
+`LLM_PROVIDER=openai` pins the provider. Without it, an `ANTHROPIC_API_KEY` or `GROQ_API_KEY` that reaches the process would take priority.
+{% endstep %}
 
-### FastMCP alternative
+{% step %}
+### Restart Cursor and check the server
 
-From a Vayl checkout, FastMCP can write the Cursor configuration for you:
+Restart Cursor after changing `mcp.json`. In Cursor's MCP settings, `vayl` should be enabled and list its tools. Ask the agent to "run the vayl health tool": every line should read `ok` (or `graph: disabled`). A `FAIL (...)` line names the part to fix; see [Troubleshooting](../reference/troubleshooting.md).
+{% endstep %}
 
-```bash
-fastmcp install cursor src/vayl/api/mcp_server.py:mcp \
-  --with vayl-mcp \
-  --env OPENAI_API_KEY=sk-... \
-  --env OPENAI_MODEL=gpt-5-mini \
-  --env VAYL_DB=/absolute/path/to/project/.vayl/memory.db
-```
-
-For local Ollama, omit `OPENAI_API_KEY` and pass the local base URL and model instead:
-
-```bash
-fastmcp install cursor src/vayl/api/mcp_server.py:mcp \
-  --with vayl-mcp \
-  --env OPENAI_BASE_URL=http://localhost:11434/v1 \
-  --env OPENAI_MODEL=qwen2.5:3b \
-  --env VAYL_DB=/absolute/path/to/project/.vayl/memory.db
-```
-
-## 3. Tell Cursor when to use memory
+{% step %}
+### Tell Cursor when to use memory
 
 Create `<project>/.cursor/rules/vayl.mdc`:
 
@@ -115,20 +106,39 @@ alwaysApply: true
 - Prefer recalled current facts over stale assumptions, and ask when a conflict remains unclear.
 ```
 
-Cursor decides when to call MCP tools, so the rule is important: installing the server alone does not guarantee automatic recall or storage.
+Installing the server alone does not make Cursor recall or store anything. The rule is what makes it happen.
+{% endstep %}
+{% endstepper %}
 
 ## Keep projects isolated
 
-Use a different absolute `VAYL_DB` path for each project. Two projects that point at the same database share memory, even if each has its own `.cursor/mcp.json`. Keeping the database under a project-specific `.vayl/` directory makes that boundary visible; add the directory to `.gitignore` so personal memory is not committed.
+Memory follows `VAYL_DB`. Two projects that point at the same database share memory, even if each has its own `.cursor/mcp.json`. Give each project its own absolute path under a project-specific `.vayl/` directory, and add `.vayl/` to `.gitignore` so personal memory isn't committed.
 
-## Model quality
+## Use a shared team server
 
-Reconciliation asks the model to distinguish additions, corrections, and retractions. Capable models handle those decisions more reliably. Small local models can mislabel subtle changes, so review important memories or choose a stronger local/cloud model when correctness matters.
+If your team runs `vayl-server`, point Cursor at it instead of starting a local process:
+
+```json
+{
+  "mcpServers": {
+    "vayl": {
+      "url": "https://your-host/mcp",
+      "headers": { "Authorization": "Bearer vayl_sk_..." }
+    }
+  }
+}
+```
+
+The server uses its own model configuration, so no model key is needed here. See [Deploying vayl-server](../guides/deploying-vayl-server.md).
+
+## Model quality and the coding preset
+
+Reconciliation asks the model to tell additions, corrections and retractions apart. Capable models do this more reliably. Small local models can mislabel subtle changes, so review important memories, or use a stronger model when correctness matters.
 
 {% hint style="success" %}
-Declaring your project's slots with a preset — e.g. `VAYL_SLOT_SCHEMA=preset:coding` — makes same-slot reconciliation **deterministic**: a switch retires the old value even on a small local model. Use a preset for reliable reconciliation, and reserve a capable model for free-form memory.
+`VAYL_SLOT_SCHEMA=preset:coding` (in both configs above) declares the usual facts of a codebase: language, framework, state library, database, test runner, conventions and more. For a declared slot, a switch retires the old value deterministically, even on a small local model. The full slot list is on the [Claude Code](claude-code.md) page.
 {% endhint %}
 
 ## Next steps
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-bolt" style="color:$primary;">:bolt:</i> Quickstart</h4></td><td>Connect Vayl to your MCP client and store your first fact.</td><td><a href="../getting-started/quickstart.md">quickstart.md</a></td></tr><tr><td><h4><i class="fa-diagram-project" style="color:$primary;">:diagram-project:</i> Agent frameworks</h4></td><td>Use Vayl from LangGraph, CrewAI, the Vercel AI SDK, and more.</td><td><a href="agent-frameworks.md">agent-frameworks.md</a></td></tr><tr><td><h4><i class="fa-database" style="color:$primary;">:database:</i> Memory tools</h4></td><td>Every tool the agent calls — remember, recall, history, and more.</td><td><a href="../mcp-tools/memory.md">memory.md</a></td></tr></tbody></table>
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-brain" style="color:$primary;">:brain:</i> Your first memory</h4></td><td>Store, change and retract a fact, and read the history.</td><td><a href="../getting-started/your-first-memory.md">your-first-memory.md</a></td></tr><tr><td><h4><i class="fa-house-laptop" style="color:$primary;">:house-laptop:</i> Local models with Ollama</h4></td><td>Run Vayl with no data leaving your machine.</td><td><a href="../guides/local-models-with-ollama.md">local-models-with-ollama.md</a></td></tr><tr><td><h4><i class="fa-database" style="color:$primary;">:database:</i> Memory tools</h4></td><td>Every tool the agent calls: remember, recall, history, and more.</td><td><a href="../mcp-tools/memory.md">memory.md</a></td></tr></tbody></table>

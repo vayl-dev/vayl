@@ -1,28 +1,62 @@
 ---
-description: The MCP tools Vayl exposes, grouped by what they do.
+description: All 32 MCP tools Vayl exposes, grouped by job, with the capability each one needs.
 icon: toolbox
 ---
 
 # MCP tools
 
-Vayl's API **is** its set of MCP tools — there's no REST layer to learn. Any MCP client connects and calls them; usually the **LLM in your agent** calls them automatically, but you can also call them from your own code. See [Calling Vayl from code](../getting-started/calling-vayl-from-code.md).
+Vayl's API is a set of 32 MCP tools. There is no REST layer: any MCP client connects over stdio (`vayl-mcp`) or authenticated HTTP (`vayl-server`) and calls them by name. Usually the LLM in your agent picks the tool; you can also call them from your own code, see [Calling Vayl from code](../getting-started/calling-vayl-from-code.md).
 
 ## Reading these pages
 
-Each tool page lists the tool's parameters; optional ones have a default or are marked `?`. Over MCP you pass arguments as a JSON object:
+Every tool section shows:
+
+* the **signature** with its real defaults, copied from `src/vayl/api/mcp_server.py`;
+* the **capability** a caller's role must grant (see [Capabilities](#capabilities));
+* the tool's **MCP annotations** (read-only, destructive, open-world);
+* a **real return string**, captured by running the tool offline with the model stubbed. Where the text comes from the answering model (`recall`, `recall_related`, `safe_recall` when it answers, the `based on:` line of `record_decision`), the page says so and the example is representative only.
+
+Over MCP you pass arguments as a JSON object:
 
 ```json
 {"name": "remember", "arguments": {"text": "We use Postgres", "user_id": "proj_7"}}
 ```
 
-For the exact, always-current schema of every tool, call `tools/list` from any MCP client.
+For the exact, always-current schema of every tool, call `tools/list` (see [The MCP interface](the-mcp-interface.md)).
 
-## Conventions
+## Memory-space arguments
 
-* **Scoping.** Every tool accepts optional `user_id`, `agent_id`, and `run_id` to target a [memory space](../core-concepts/memory-spaces.md). Leave them blank for a single space.
-* **Safety annotations.** Each tool carries MCP annotations, so clients can auto-run reads and confirm before an irreversible erasure.
-* **Capabilities.** On `vayl-server`, every tool checks the capability its caller's role grants, and is fail-closed.
+A [memory space](../core-concepts/memory-spaces.md) is the triple `(user_id, agent_id, run_id)`. Tools that read or write memory take those three arguments, defaulting to `user_id="default"`, `agent_id=""`, `run_id=""`. Not every tool does:
+
+| Takes `user_id`, `agent_id`, `run_id` | Takes only `user_id` | Takes none |
+| --- | --- | --- |
+| `remember`, `recall`, `recall_related`, `forget`, `get_memory`, `update_memory`, `history`, `list_memories`, `record_decision`, `check_before_act`, `safe_recall`, `pending_changes`, `confirm_change`, `reject_change`, `set_reconcile_policy`, `get_reconcile_policy`, `attest`, `delete`, `delete_all`, `export_memory`, `purge_expired` | `explain_decision` (default `"default"`), `audit_log` (default `""` = whole deployment) | `verify_receipt`, `verify_audit`, `export_public_key`, `create_principal`, `list_principals`, `revoke_principal`, `license_status`, `stats`, `health` |
+
+## Capabilities
+
+On `vayl-server` every call is checked before the tool runs, and denials are written to the audit log. Over stdio (`vayl-mcp`) the caller is a trusted local admin, unless `VAYL_AUTH_REQUIRED` is on.
+
+| Capability | Roles that have it | Tools |
+| --- | --- | --- |
+| `read` | admin, member, agent, viewer | `recall`, `recall_related`, `get_memory`, `history`, `list_memories`, `check_before_act`, `safe_recall`, `pending_changes`, `get_reconcile_policy`, `export_memory` |
+| `write` | admin, member, agent | `remember`, `forget`, `update_memory`, `record_decision`, `attest` |
+| `delete` | admin, member | `delete` |
+| `verify` | all five roles | `explain_decision`, `verify_receipt`, `verify_audit`, `export_public_key`, `audit_log`, `license_status`, `stats`, `health` |
+| `approve` | admin, member | `confirm_change`, `reject_change` |
+| `admin` | admin | `delete_all`, `purge_expired`, `set_reconcile_policy`, `create_principal`, `list_principals`, `revoke_principal` |
+
+Three tools add a check of their own: `audit_log` without a `user_id` needs `admin`; `verify_receipt` only verifies receipts owned by a space in the caller's scope; `remember` with a trusted `source` needs a key named after that source, or `approve`. See [Authentication & access](../core-concepts/authentication-and-access.md) for roles, scopes and tenants.
 
 ## Groups
 
-<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-database" style="color:$primary;">:database:</i> Memory</h4></td><td>Store, query, correct, and time-travel over facts.</td><td><a href="memory.md">memory.md</a></td></tr><tr><td><h4><i class="fa-shield-halved" style="color:$primary;">:shield-halved:</i> Safety and gating</h4></td><td>Gate irreversible actions and require approval.</td><td><a href="safety-and-gating.md">safety-and-gating.md</a></td></tr><tr><td><h4><i class="fa-file-signature" style="color:$primary;">:file-signature:</i> Accountability</h4></td><td>Signed, tamper-evident record of what the agent did.</td><td><a href="accountability.md">accountability.md</a></td></tr><tr><td><h4><i class="fa-scale-balanced" style="color:$primary;">:scale-balanced:</i> Compliance (GDPR)</h4></td><td>Erasure, export, and retention with signed receipts.</td><td><a href="compliance-gdpr.md">compliance-gdpr.md</a></td></tr><tr><td><h4><i class="fa-user-gear" style="color:$primary;">:user-gear:</i> Administration</h4></td><td>Principals, policy, and operations.</td><td><a href="administration.md">administration.md</a></td></tr></tbody></table>
+| Group | Tools |
+| --- | --- |
+| [Memory](memory.md) | `remember`, `recall`, `recall_related`, `forget`, `history`, `list_memories`, `get_memory`, `update_memory` |
+| [Safety and gating](safety-and-gating.md) | `check_before_act`, `safe_recall`, `pending_changes`, `confirm_change`, `reject_change`, `set_reconcile_policy`, `get_reconcile_policy` |
+| [Accountability](accountability.md) | `record_decision`, `explain_decision`, `attest`, `verify_receipt`, `audit_log`, `verify_audit`, `export_public_key` |
+| [Compliance (GDPR)](compliance-gdpr.md) | `delete`, `delete_all`, `export_memory`, `purge_expired` |
+| [Administration](administration.md) | `create_principal`, `list_principals`, `revoke_principal`, `license_status`, `stats`, `health` |
+
+## Next steps
+
+<table data-view="cards"><thead><tr><th></th><th></th><th data-hidden data-card-target data-type="content-ref"></th></tr></thead><tbody><tr><td><h4><i class="fa-plug" style="color:$primary;">:plug:</i> The MCP interface</h4></td><td>Transports, <code>tools/list</code>, the call envelope, annotations, and errors.</td><td><a href="the-mcp-interface.md">the-mcp-interface.md</a></td></tr><tr><td><h4><i class="fa-database" style="color:$primary;">:database:</i> Memory</h4></td><td>The core store-and-recall tools.</td><td><a href="memory.md">memory.md</a></td></tr><tr><td><h4><i class="fa-lock" style="color:$primary;">:lock:</i> Authentication &#x26; access</h4></td><td>Roles, capabilities, scopes, and tenants.</td><td><a href="../core-concepts/authentication-and-access.md">authentication-and-access.md</a></td></tr></tbody></table>

@@ -1,106 +1,215 @@
 ---
-description: Gate irreversible actions and require human approval.
+description: Block actions on unsafe memory, queue gated changes for a person, and set how shared spaces resolve conflicts.
 icon: shield-halved
 ---
 
 # Safety and gating
 
-Guardrails for high-stakes agents. See the [Safety gates guide](../guides/safety-gates-and-human-approval.md) for the workflow. A `?` marks an optional argument.
+These tools stop an agent from acting on memory that is disputed, uncertain, stale, or just changed, and hold changes to sensitive slots until a person approves them. `check_before_act` and `safe_recall` return a deterministic verdict with reasons; `pending_changes`, `confirm_change` and `reject_change` run the human-approval queue. For the end-to-end workflow, see the [Safety gates & human approval guide](../guides/safety-gates-and-human-approval.md).
+
+All seven tools take the memory-space arguments `user_id="default"`, `agent_id=""`, `run_id=""`. Outputs below were captured by running the tools offline.
+
+## The safety policy
+
+`check_before_act` and `safe_recall` share one policy, set per call:
+
+| Argument | Default | Blocks when |
+| --- | --- | --- |
+| `min_confidence` | `0.7` | A fact's confidence is below this. |
+| `require_active` | `True` | A fact is retired (superseded or historical). |
+| `block_on_flagged` | `True` | A fact is flagged: an unresolved conflict, or a change awaiting approval. |
+| `max_staleness_days` | `0` (off) | A fact was last set more than this many days ago. |
+| `block_on_recent_change_days` | `0` (off) | A fact that **superseded** an earlier value was set less than this many days ago. A first-time value never trips it. |
+
+Any value of `0` or below turns the two day windows off. Both tools only evaluate active and flagged facts, so `require_active` is a backstop: a retired value never reaches the check in the first place.
 
 ## check\_before\_act
 
 ```python
-check_before_act(subject, user_id?, agent_id?, run_id?, min_confidence?,
-                 require_active?, block_on_flagged?, max_staleness_days?,
-                 block_on_recent_change_days?)
+check_before_act(subject: str, user_id: str = "default", agent_id: str = "", run_id: str = "",
+                 min_confidence: float = 0.7, require_active: bool = True,
+                 block_on_flagged: bool = True, max_staleness_days: float = 0,
+                 block_on_recent_change_days: float = 0) -> str
 ```
 
-A safety gate to call **before** an irreversible action. Returns **SAFE**, or **BLOCKED** with reasons.
+**Capability** `read` · **Annotations** read-only, no LLM call
 
-| Argument                      | Description                                   |
-| ----------------------------- | --------------------------------------------- |
-| `subject`                     | the slot you're about to act on               |
-| `min_confidence`              | minimum confidence to be considered safe      |
-| `require_active`              | require a current (non-retired) value         |
-| `block_on_flagged`            | block if the value is disputed/flagged        |
-| `max_staleness_days`          | reject facts older than this                  |
-| `block_on_recent_change_days` | block if the value changed within this window |
-
-**Example**
+Evaluates every active and flagged fact for `subject` against the policy. Call it before any irreversible action (a payment, an email, a config change). The verdict is deterministic.
 
 ```json
-{"name": "check_before_act", "arguments": {"subject": "active_medication", "user_id": "patient_42", "block_on_flagged": true}}
+{"name": "check_before_act", "arguments": {"subject": "state", "user_id": "proj_7"}}
 ```
 
 ```
-✅ SAFE to act on 'active_medication'.
-  current: active_medication = warfarin 7 mg PO daily
+✅ SAFE to act on 'state'.
+  current: state = Zustand
 ```
 
-When a value is disputed, stale, or below the confidence bar, the same call returns:
+A blocked verdict lists one bullet per failing check. These are the real reason strings:
+
+| Cause | Reason line |
+| --- | --- |
+| No active fact for the subject | `• no active fact for this subject — nothing safe to act on` |
+| Flagged (disputed, or awaiting approval) | `• unresolved conflict (FLAGGED) — the value is disputed` |
+| Low confidence | `• confidence 0.5 < required 0.7` |
+| `max_staleness_days=90` | `• stale: last set 120d ago > 90d limit` |
+| `block_on_recent_change_days=1` | `• recently changed 0.0d ago — may be unsettled` |
+
+For example:
 
 ```
-⛔ BLOCKED — do NOT act on 'active_medication':
-  • value is flagged (unresolved conflict)
+⛔ BLOCKED — do NOT act on 'api_timeout':
+  • confidence 0.5 < required 0.7
 ```
+
+While a change to a confirm-required slot is pending, the proposal is a flagged fact on that subject, so `check_before_act` blocks with one `unresolved conflict (FLAGGED)` line per pending proposal until someone decides.
 
 ## safe\_recall
 
 ```python
-safe_recall(question, user_id?, agent_id?, run_id?, min_confidence?,
-            require_active?, block_on_flagged?, max_staleness_days?,
-            block_on_recent_change_days?, critical_categories?)
+safe_recall(question: str, user_id: str = "default", agent_id: str = "", run_id: str = "",
+            min_confidence: float = 0.7, require_active: bool = True,
+            block_on_flagged: bool = True, max_staleness_days: float = 0,
+            block_on_recent_change_days: float = 0, critical_categories: str = "") -> str
 ```
 
-Like `recall`, but answers **only if** every current fact behind the answer passes the same policy checks as `check_before_act`; otherwise it withholds the answer and returns why. Use it on the path to an action.
+**Capability** `read` · **Annotations** read-only, open-world (calls the LLM and embedder)
+
+Like `recall`, but for an answer the agent will act on. It runs the same retrieval as `recall`, checks **every active fact placed in the model's context** against the policy, and also blocks if any of those subjects has a flagged fact. If every check passes it returns the model's answer (free text); otherwise it withholds the answer:
+
+```
+⛔ WITHHELD — not safe to act on this answer:
+  • confidence 0.5 < required 0.7
+```
+
+With no current fact behind the answer:
+
+```
+⛔ WITHHELD — not safe to act on this answer:
+  • no current fact supports this — nothing safe to act on
+```
+
+A flagged fact on a subject in context adds `• unresolved conflict on '<subject>' — the value is disputed`.
+
+{% hint style="warning" %}
+**Small spaces are checked whole.** When a space holds `VAYL_RECALL_CONTEXT` (default 40) facts or fewer, every active fact goes into the context, so one low-confidence fact anywhere in the space withholds every answer. Keep unrelated facts in separate [memory spaces](../core-concepts/memory-spaces.md), or use `check_before_act` on the specific subject.
+{% endhint %}
+
+`critical_categories` works as in [`recall`](memory.md#recall), and matters more here: the gate can only judge facts that reached the context.
 
 ## pending\_changes
 
 ```python
-pending_changes(user_id?, agent_id?, run_id?)
+pending_changes(user_id: str = "default", agent_id: str = "", run_id: str = "") -> str
 ```
 
-Show proposed changes to **confirm-required** slots that haven't been applied — the human-approval queue. Each entry shows old to new and the sentence that triggered it.
+**Capability** `read` · **Annotations** read-only
+
+Lists proposed changes to **confirm-required** slots (slots declared with `"confirm": true` in the `VAYL_SLOT_SCHEMA` file). Such a change is stored as `[FLAG]` and not applied; the current value stands until a person decides.
+
+```
+2 change(s) awaiting approval:
+  #2 REPLACE active_medication: 'warfarin 5mg daily' -> 'apixaban 5mg twice daily'
+        said: 'Switch her to apixaban 5mg twice daily.'
+  #3 REMOVE active_medication: 'warfarin 5mg daily' -> 'warfarin 5mg daily'
+        said: 'Maybe stop the warfarin.'
+
+Approve with confirm_change(memory_id), discard with reject_change(memory_id).
+```
+
+For a `REMOVE`, both sides show the value that would be removed. An empty queue returns `No changes awaiting approval.`
 
 ## confirm\_change
 
 ```python
-confirm_change(memory_id, user_id?, agent_id?, run_id?, decided_by?)
+confirm_change(memory_id: int, user_id: str = "default", agent_id: str = "", run_id: str = "",
+               decided_by: str = "") -> str
 ```
 
-Approve a proposed change, applying it. Records **who** decided (`decided_by`). A proposal can't be confirmed if the value it would replace has since changed.
+**Capability** `approve` (admin and member roles; agent keys lack it, so an agent cannot approve its own proposal) · **Annotations** write, not destructive
+
+Applies a pending change. The approver recorded in the audit log is the authenticated caller as `name [id]`; `decided_by` is only an optional note beside it.
+
+```
+Approved #2: SUPERSEDE active_medication = apixaban 5mg twice daily
+```
+
+Approving a removal returns, for example, `Approved #2: RETRACT active_medication = warfarin 5mg daily`, and `history` then shows `(retracted: warfarin 5mg daily)  [HISTORICAL]`. The audit entry reads `#2 RETRACT active_medication by <name> [<principal id>]`. If the id isn't pending, or the value it would replace has changed since the proposal was made:
+
+```
+#2 is not awaiting approval. It may have been decided already, or the value it would have replaced has since changed — in which case the proposal is stale and should be re-made against the current value.
+```
+
+An agent key gets:
+
+```
+Access denied: 'confirm_change' requires the 'approve' capability; your role(s) ['agent'] do not grant it.
+```
 
 ## reject\_change
 
 ```python
-reject_change(memory_id, user_id?, agent_id?, run_id?, decided_by?)
+reject_change(memory_id: int, user_id: str = "default", agent_id: str = "", run_id: str = "",
+              decided_by: str = "") -> str
 ```
 
-Discard a proposed change. The current value stands; the proposal is kept as history.
+**Capability** `approve` · **Annotations** write, not destructive
+
+Discards a pending change. The current value stands; the proposal is kept in `history` as `HISTORICAL`, because that someone proposed it is worth auditing. `approve` is required here too: an agent quietly discarding proposals would empty the queue as surely as approving them.
+
+```
+Discarded #3. The current value is unchanged.
+```
+
+If the id isn't pending: `#2 is not awaiting approval.`
 
 ## set\_reconcile\_policy
 
 ```python
-set_reconcile_policy(mode?, authority?, user_id?, agent_id?, run_id?)
+set_reconcile_policy(mode: str = "RECENCY", authority: dict | None = None,
+                     user_id: str = "default", agent_id: str = "", run_id: str = "") -> str
 ```
 
-Configure how a **shared** space resolves conflicts between contributors:
+**Capability** `admin` · **Annotations** write, not destructive
 
-| `mode`      | Behaviour                                                          |
-| ----------- | ------------------------------------------------------------------ |
-| `RECENCY`   | newer wins                                                         |
-| `AUTHORITY` | higher-ranked source wins; a lower one is flagged, not overwritten |
-| `REVIEW`    | every cross-source conflict is flagged                             |
+Sets how a **shared** space (one that several agents or people write to, each `remember` carrying a `source`) resolves conflicts between different sources:
 
-`authority` maps a source to a rank, used by `AUTHORITY` mode.
+| `mode` | Behaviour |
+| --- | --- |
+| `RECENCY` | Newer assertion wins. The default; contributors are equally trusted. |
+| `AUTHORITY` | A higher-ranked source wins. A lower-ranked source contradicting it is flagged, not applied. Pass `authority` as `{source: rank}`, higher is more authoritative. |
+| `REVIEW` | Every cross-source conflict is flagged for a person. |
+
+A source correcting its own earlier fact always supersedes, whatever the mode.
+
+```json
+{"name": "set_reconcile_policy", "arguments": {"mode": "AUTHORITY", "authority": {"fhir": 10, "agent": 1}, "user_id": "org:acme"}}
+```
+
+```
+Reconciliation policy for this space set to AUTHORITY.  authority ranks: {'fhir': 10, 'agent': 1}
+```
+
+An unknown mode returns `Unknown mode 'VOTE'. Use RECENCY, AUTHORITY, or REVIEW.`
 
 ## get\_reconcile\_policy
 
 ```python
-get_reconcile_policy(user_id?, agent_id?, run_id?)
+get_reconcile_policy(user_id: str = "default", agent_id: str = "", run_id: str = "") -> str
 ```
 
-Show the current reconciliation policy for the space.
+**Capability** `read` · **Annotations** read-only
+
+```
+Policy: AUTHORITY
+  authority ranks: {'fhir': 10, 'agent': 1}
+```
+
+A space with no policy set returns `Policy: RECENCY (default — newer assertion wins).`
+
+## Trusted sources
+
+`VAYL_TRUSTED_SOURCES` (for example `fhir,hl7`) names sources whose changes are already authorized upstream, so they skip the confirmation gate. Because `source` is a free string, writing as a trusted source is bound to keys: only a principal whose name equals the source (create an integration key named `fhir`), or a caller with `approve`, may use it. Anyone else gets `Access denied` and the attempt is audited. See [`remember`](memory.md#remember).
 
 ## Next steps
 
