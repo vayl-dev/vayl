@@ -42,7 +42,7 @@ purge_expired(older_than_days, user_id?, agent_id?, run_id?,
               include_audit?, include_decisions?, include_receipts?)
 ```
 
-Retention (Art. 5(1)(e)): hard-delete records older than `older_than_days`. The `include_*` flags extend the purge to the audit log, decisions, and receipts. Decisions and receipts are purged for your whole tenant. The audit log is one chain for the whole deployment, so `include_audit` purges it for every tenant and only the deployment operator (an admin of the `default` tenant) may use it. The audit chain stays verifiable across purges via a **signed retention anchor**.
+Retention (Art. 5(1)(e)): hard-delete records older than `older_than_days`. The `include_*` flags extend the purge to the audit log, decisions, and receipts. The audit chain stays verifiable across purges via a **signed retention anchor**.
 
 {% hint style="info" %}
 **`forget` vs `delete`:** `forget` retires a fact but keeps it in history (correctness); `delete` hard-erases it for compliance (privacy).

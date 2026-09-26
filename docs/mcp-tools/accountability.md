@@ -37,7 +37,7 @@ Issue a signed, third-party-verifiable **attestation** of the current value — 
 audit_log(limit?, user_id?)
 ```
 
-The accountability trail — who did what, when. Detail is encrypted at rest and never wiped by erasure. Entries are confined to your tenant. Without a `user_id`, the log requires the `admin` capability (the deployment operator, an admin of the `default` tenant, sees every tenant's entries); with one, it's scoped to that space.
+The accountability trail — who did what, when. Detail is encrypted at rest and never wiped by erasure. Without a `user_id`, the deployment-wide log requires the `admin` capability; with one, it's scoped to that space.
 
 ## verify\_audit
 
