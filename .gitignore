@@ -22,3 +22,8 @@ dist/
 # LOCOMO harness: dataset is fetched from upstream, DBs are run artifacts
 benchmarks/datasets/
 benchmarks/.dbs/
+
+# coverage.py data
+.coverage
+.coverage.*
+htmlcov/
