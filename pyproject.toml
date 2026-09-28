@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "fastmcp>=3.4.5,<4",   # standalone FastMCP framework (replaces the removed bundled mcp.server.fastmcp)
-    "mcp>=1.2,<2",     # still imported directly for mcp.types.ToolAnnotations; fastmcp 3 builds on mcp v1
+    "mcp>=1.2,<3",     # still imported directly for mcp.types.ToolAnnotations; fastmcp 3 builds on mcp v1
     "cryptography>=50",   # at-rest encryption + Argon2id VAYL_KEY KDF; 50 fixes PYSEC-2026-3552
 ]
 
